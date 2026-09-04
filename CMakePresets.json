@@ -1,0 +1,45 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "description": "Der Generator wird bewusst nicht festgenagelt: CMake waehlt die neueste installierte Visual-Studio-Version. Ein fest verdrahtetes 'Visual Studio 17 2022' bricht auf Rechnern mit anderer VS-Version. Die 64-Bit-Anforderung sichert stattdessen der Guard in CMakeLists.txt ab."
+        },
+        {
+            "name": "debug",
+            "displayName": "x64 Debug",
+            "inherits": "base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+        },
+        {
+            "name": "release",
+            "displayName": "x64 Release",
+            "inherits": "base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+        },
+        {
+            "name": "ninja",
+            "displayName": "Ninja (schnelle Iteration)",
+            "description": "Aus einer 'x64 Native Tools Command Prompt' heraus aufrufen, damit cl.exe im Pfad liegt.",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/ninja",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+        }
+    ],
+    "buildPresets": [
+        { "name": "debug", "configurePreset": "debug", "configuration": "Debug" },
+        { "name": "release", "configurePreset": "release", "configuration": "RelWithDebInfo" },
+        { "name": "ninja", "configurePreset": "ninja" }
+    ],
+    "testPresets": [
+        {
+            "name": "debug",
+            "configurePreset": "debug",
+            "configuration": "Debug",
+            "output": { "outputOnFailure": true }
+        }
+    ]
+}

@@ -1,0 +1,9 @@
+#pragma once
+
+// Generated from src/version.h.in by CMake - do not edit the generated copy.
+//
+// A header rather than a /D compile definition: passing a quoted string through
+// CMake into MSBuild loses its quotes in several documented ways, and the failure
+// mode is a confusing preprocessor error far from the cause.
+
+#define TS3SS_VERSION "@PROJECT_VERSION@"

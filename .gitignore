@@ -1,0 +1,34 @@
+# Build output
+/build/
+/out/
+/install/
+[Dd]ebug/
+[Rr]elease/
+[Rr]elWithDebInfo/
+[Mm]inSizeRel/
+*.dll
+*.exp
+*.lib
+*.pdb
+*.ilk
+*.obj
+
+# Packaged addon
+*.ts3_plugin
+/dist/
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+CMakeSettings.json
+*.user
+*.suo
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+# Local, machine-specific config used during development
+/tools/local.*
