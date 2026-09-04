@@ -1,0 +1,4 @@
+[submodule "third_party/ts3-pluginsdk"]
+	path = third_party/ts3-pluginsdk
+	url = https://github.com/TeamSpeak-Systems/ts3client-pluginsdk.git
+	branch = master
