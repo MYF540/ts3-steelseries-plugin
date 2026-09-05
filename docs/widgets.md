@@ -31,18 +31,26 @@ enum class Icon : int {
 struct WidgetOutput {
     std::vector<std::string> lines;
 
+    // Wunsch-Icon. Es gibt nur EINES pro Frame -- siehe unten, wer gewinnt.
+    Icon icon = Icon::None;
+
     // Höher gewinnt, wenn mehr Widgets liefern als Zeilen frei sind.
     // Normal 0. Für Dringendes (z. B. "du sprichst ins stumme Mikro") höher.
     int priority = 0;
 
-    // Wunsch-Icon. Es gibt nur EINES pro Frame -- siehe unten, wer gewinnt.
-    Icon icon = Icon::None;
+    // Rechtfertigt das, dem Nutzer die Anzeige wegzunehmen?
+    //
+    //   true  = etwas ist gerade passiert (jemand spricht, Poke, Mute umgeschaltet)
+    //   false = etwas ist gerade wahr (du bist stumm, der Channel heißt X)
+    //
+    // Nur ein true kann den Schirm beanspruchen. Der Default false ist die sichere
+    // Wahl: Wer nichts angibt, kann das Display nicht dauerhaft belegen.
+    bool demandsScreen = false;
 };
 
 struct RenderContext {
-    int widthPx;    // 128 auf der Nova-Pro-Basisstation
-    int heightPx;   // 64
-    int maxLines;   // wie viele Textzeilen der Composer noch vergeben kann
+    int maxLines;         // wie viele Zeilen der Composer noch vergeben kann
+    int maxCharsPerLine;  // harte Grenze -- was darüber steht, ist weg (kein Bildlauf)
 };
 
 class IWidget {
@@ -75,16 +83,19 @@ Genau das erlaubt dem Nutzer, mehr Widgets zu aktivieren, als gleichzeitig auf d
 Zeilen passen: Meistens schweigt die Mehrheit, und der Platz geht an das, was gerade
 relevant ist.
 
-> **`nullopt` gibt den Schirm frei.** Seit [ADR 0006](decisions/0006-event-driven-screen-ownership.md)
-> hat `nullopt` eine zweite, gewichtigere Bedeutung: Liefern **alle** aktivierten Widgets
-> `nullopt`, gibt das Plugin das Display an SteelSeries GG zurück.
+> **Die wichtigere Frage ist aber `demandsScreen`.** Solange kein einziges Widget es auf
+> `true` setzt, bleibt der Frame leer und das Display gehört SteelSeries GG — auch wenn
+> Widgets Zeilen geliefert haben.
 >
-> Ein Widget, das immer etwas liefert, hält den Schirm damit für immer — und zerhackt
-> die Anzeige anderer Apps, weil GG bei Konkurrenz sichtbar zwischen ihnen wechselt.
+> Genau daran ist die erste Fassung gescheitert: Das Mute-Widget meldete korrekt und
+> dauerhaft „Mikro aus" und hielt damit den Schirm, solange der Nutzer stumm war —
+> potenziell stundenlang, mit genau dem Geflacker gegen NowPlaying, das
+> [ADR 0006](decisions/0006-event-driven-screen-ownership.md) verhindern sollte.
+> [ADR 0007](decisions/0007-transient-vs-persistent.md) trennt deshalb Ereignis und
+> Dauerzustand.
 >
-> **Faustregel beim Schreiben eines Widgets:** Frage nicht „was könnte ich anzeigen?",
-> sondern „lohnt es sich, dem Nutzer dafür gerade seine Musikanzeige wegzunehmen?".
-> Im Zweifel `nullopt`.
+> **Faustregel:** Frage nicht „was könnte ich anzeigen?", sondern „ist das gerade
+> *passiert* — und lohnt es, dem Nutzer dafür seine Musikanzeige wegzunehmen?".
 
 ## Ein Widget hinzufügen
 
@@ -140,24 +151,31 @@ unvermeidbar; alles andere bleibt unberührt.
 ## Wie der Composer entscheidet
 
 ```
-1. Widgets aus der Config in konfigurierter Reihenfolge holen
+1. Widgets in konfigurierter Reihenfolge holen
      (deaktivierte und unbekannte IDs überspringen)
-2. Für jedes: render() mit dem restlichen Zeilenbudget aufrufen
-3. nullopt -> überspringen, kein Platzverbrauch
-4. Ausgaben nach priority absteigend stabil sortieren
-     (stabil: bei gleicher priority bleibt die Nutzerreihenfolge erhalten)
-5. Zeilen füllen, bis das Budget erschöpft ist (max_lines, Default 3)
-6. Icon des ERSTEN beitragenden Widgets mit icon != None übernehmen
-7. Nicht kürzen -- GG lässt zu lange Zeilen von selbst durchlaufen
-8. Ist gar nichts zusammengekommen: leerer Frame -> Schirm freigeben
+2. Für jedes render() aufrufen; nullopt -> überspringen
+3. Sortieren nach:  demandsScreen  ->  priority  ->  Nutzerreihenfolge
+4. Icon vom obersten Beitrag übernehmen, der eines wünscht
+5. Ohne Icon noch einmal rendern -- dann sind 16 statt 12 Zeichen frei
+6. Zeilen füllen bis max_lines (3)
+7. Hat NIEMAND demandsScreen gesetzt: leerer Frame -> Schirm freigeben
 ```
 
-Punkt 4 ist der Grund, warum `priority` existiert: Die Nutzerreihenfolge gilt, *außer*
-etwas ist wirklich dringend. "Du sprichst, aber dein Mikro ist stumm"
-(`STATUS_TALKING_WHILE_DISABLED`) soll durchschlagen, auch wenn der Nutzer das
-Mute-Widget nach unten sortiert hat.
+### Punkt 3: Wer den Schirm holt, führt
 
-### Punkt 6: Es gibt nur ein Icon
+`demandsScreen` sortiert **vor** `priority`. Das ist nicht kosmetisch: Ohne diesen
+Schlüssel nimmt ein bloß mitfahrendes Zustands-Widget dem Ereignis die oberste Zeile
+weg, das die Anzeige überhaupt ausgelöst hat.
+
+Genau das trat auf und wurde von einem Test gefangen: Beim Stummschalten stand
+`"Lobby 3"` über `"Mikro aus"` — allein weil `channel_info` zufällig früher registriert
+ist und beide Priorität 0 haben.
+
+`priority` regelt danach die Dringlichkeit unter den Ereignissen: „Du sprichst ins
+stumme Mikro" (Priorität 100) schlägt alles, auch wenn der Nutzer das Widget nach unten
+sortiert hat.
+
+### Punkt 4: Es gibt nur ein Icon
 
 GameSense setzt `icon-id` auf den **Frame**, nicht auf die Zeile. Drei Zeilen aus drei
 Widgets teilen sich also ein einziges Icon.
@@ -171,11 +189,29 @@ Ein Widget darf `Icon::None` liefern und trotzdem Zeilen beitragen. Das ist der
 Normalfall für `channel_info`: Es hat nichts Symbolisches zu sagen und überlässt die
 32 Pixel gern jemandem, der etwas davon hat.
 
-### Punkt 7: Nicht kürzen
+### Punkt 7: Kürzen ist Pflicht
 
-Text, der nicht in die Zeile passt, lässt GG von selbst durchlaufen (beobachtet an der
-NowPlaying-App). Ein hart auf 18 Zeichen abgeschnittener Channelname wäre schlechter als
-einer, der scrollt. Kürzung bleibt Notbremse für absurde Längen, nicht Regelfall.
+**Es gibt keinen Bildlauf.** Gemessen mit Alphabet-Lineal und einem absichtlich viel zu
+langen Text: In keinem Fall lief etwas durch, alles wurde abgeschnitten.
+
+Der Platz ist fest: rund 8 px je Zeichen, also **16 Zeichen ohne Icon, 12 mit Icon**
+(das Icon belegt die 32 linkesten von 128 Pixeln). `RenderContext::maxCharsPerLine`
+nennt den jeweils geltenden Wert.
+
+Das ist die harte Grenze, an der Widgets entlangschreiben müssen:
+
+| statt | besser |
+|---|---|
+| `"Anna Musterfrau spricht"` | `"Anna"` |
+| `"Mikrofon stummgeschaltet"` | `"Mic aus"` |
+| `"Channel: Lobby (4)"` | `"Lobby 4"` |
+
+Der Composer kürzt zwar als Notbremse, aber ein Widget, das sich auf die Kürzung
+verlässt, liefert unlesbaren Rumpf. `RenderContext` nennt die verfügbare Zeichenzahl —
+benutze sie.
+
+> Ganz früher stand hier „nicht kürzen, GG lässt durchlaufen". Das war aus dem Verhalten
+> der NowPlaying-App geschlossen und ist für JSON-Texthandler widerlegt.
 
 ## Testen
 
@@ -194,20 +230,39 @@ Für jedes Widget mindestens: der aktive Fall, der `nullopt`-Fall, und der Fall
 
 ## Die Widgets aus dem ursprünglichen Auftrag
 
-| id | displayName | zeigt | Icon | `nullopt` wenn |
+| id | zeigt | Icon | Prio | beansprucht den Schirm |
 |---|---|---|---|---|
-| `connection` | Verbindungsstatus | Verbinde…, Getrennt, Verbindung verloren | `Connect` / `Disconnect` | verbunden und ruhig |
-| `channel_info` | Channel | Channelname + Nutzerzahl | `None` | nicht verbunden, oder seit `hold_ms` unverändert |
-| `talkers` | Wer spricht | Nicknames der Sprechenden im eigenen Channel | `Talking` | niemand spricht |
-| `mute_status` | Mute / Deaf | Mikro stumm, Deaf, Away | `Muted` | nichts davon aktiv |
+| `talking_while_muted` | „MIKRO AUS! / du sprichst" | `Muted` | 100 | solange es zutrifft |
+| `poke` | wer angestupst hat + Text | — | 50 | Ereignis (Default 8 s) |
+| `connection_quality` | Ping hoch / Paketverlust | — | 45 | solange das Problem besteht |
+| `connection` | Verbinde…, Getrennt | `Connect`/`Disconnect` | 40 | Ereignis (5 s) |
+| `chat_message` | Absender + Anfang der Nachricht | — | 30 | Ereignis (6 s) |
+| `server_join` | „Name / ist online" — nur Buddys | `Connect` | 25 | Ereignis (6 s) |
+| `channel_join` | „Name / ist da" | `Connect` | 20 | Ereignis (5 s) |
+| `talkers` | bis zu 3 Nicknames, einer je Zeile | `Talking` | 10 | solange jemand spricht |
+| `mute_status` | Mikro aus / Ton aus / Abwesend | `Muted` | 0 | Ereignis (4 s) |
+| `channel_info` | Channelname + Nutzerzahl | — | 0 | Ereignis (4 s) |
 
-`connection` zeigt bewusst **nur Übergänge und Probleme**, nicht den Dauerzustand
-„verbunden": Sonst hielte es den Schirm permanent und höbe ADR 0006 auf. Dass die
-Verbindung steht, erkennt man daran, dass sich niemand beschwert.
+Alle Dauern sind pro Widget konfigurierbar (1–60 s), siehe
+[configuration.md](configuration.md).
 
-`channel_info` ist der Grenzfall: Der Channelname ist ein Dauerzustand, aber ein
-Channelwechsel ist ein Ereignis. Deshalb meldet es sich beim Wechsel und verstummt
-danach — sonst wäre der Schirm nach jedem Channelwechsel für immer belegt.
+`connection_quality` meldet sich **nur bei schlechten Werten** (ab 150 ms Ping bzw. 2 %
+Paketverlust). Ein dauerhaft eingeblendeter Ping wäre ein Zustand und keine Information:
+Ein guter Ping sagt einem nichts, was man wissen musste.
+
+`server_join` bleibt still, solange die Buddy-Liste leer ist — sonst wäre auf einem gut
+besuchten Server jede Verbindung eine Displayübernahme.
+
+Die letzten beiden sind die Zustands-Widgets: Sie zeigen dauerhaft etwas an, **fordern
+den Schirm aber nur direkt nach der Änderung**. Danach fahren sie nur noch mit, wenn ein
+anderes Widget die Anzeige ohnehin geholt hat — und genau dort sind sie nützlich, weil
+man dann sieht, *wer* spricht und *wo*.
+
+`connection` meldet bewusst nie den Dauerzustand „verbunden". Dass die Verbindung steht,
+erkennt man daran, dass sich niemand beschwert.
+
+`poke` und `chat_message` verzichten auf ein Icon: Es gibt keins, das passt, und die
+32 Pixel sind für den Absendernamen wertvoller.
 
 ## Ideen für später
 

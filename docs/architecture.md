@@ -162,9 +162,11 @@ Zwei Eigenheiten des Geräts prägen den Composer:
   obersten beitragenden Widgets, das eines wünscht — nach `priority`-Sortierung also
   automatisch das Dringlichste. Die Icons 19 (Muted), 20 (Talking), 21 (Connect) und
   22 (Disconnect) passen exakt auf diesen Anwendungsfall.
-- **Nicht kürzen.** GG lässt zu lange Zeilen von selbst durchlaufen (an der
-  NowPlaying-App beobachtet). Ein abgeschnittener Channelname wäre schlechter als ein
-  scrollender.
+- **Kürzen ist Pflicht, denn es gibt keinen Bildlauf.** Gemessen: Zu langer Text wird
+  abgeschnitten, auch wenn er weit übersteht. Bei rund 8 px je Zeichen sind das
+  **16 Zeichen ohne Icon, 12 mit Icon** — der Composer reicht die geltende Zahl über
+  `RenderContext::maxCharsPerLine` an die Widgets weiter, damit sie gar nicht erst zu
+  lang formulieren.
 
 ## GameSense-Anbindung
 

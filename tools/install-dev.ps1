@@ -37,26 +37,43 @@ if (-not (Test-Path $pluginDir)) {
     throw "TeamSpeak-Plugin-Verzeichnis nicht gefunden: $pluginDir"
 }
 
-# Ein laufender Client haelt die DLL gesperrt - Kopieren schlaegt dann mit einer
-# wenig aussagekraeftigen Meldung fehl. Lieber vorher klar sagen, was los ist.
+# Ein laufender Client sperrt die DLL nur, wenn das Plugin darin bereits GELADEN ist.
+# Beim Erstinstallieren gibt es keine Sperre, also wird hier die Datei selbst gepruft
+# statt bloss die Anwesenheit des Prozesses - sonst verlangt das Skript ohne Not, dass
+# der Nutzer sein laufendes TeamSpeak beendet.
+$target = Join-Path $pluginDir (Split-Path $dll -Leaf)
+
+function Test-FileLocked([string]$Path) {
+    if (-not (Test-Path $Path)) { return $false }
+    try {
+        $fs = [IO.File]::Open($Path, 'Open', 'Write', 'None')
+        $fs.Close()
+        return $false
+    } catch { return $true }
+}
+
 $ts3 = Get-Process -Name 'ts3client_win64' -ErrorAction SilentlyContinue
-if ($ts3) {
-    if ($RestartTeamSpeak) {
-        Write-Host "TeamSpeak wird beendet..." -ForegroundColor Yellow
+
+if (Test-FileLocked $target) {
+    if ($RestartTeamSpeak -and $ts3) {
+        Write-Host "DLL ist gesperrt, TeamSpeak wird beendet..." -ForegroundColor Yellow
         $ts3 | Stop-Process
         $ts3 | Wait-Process -Timeout 15
         Start-Sleep -Milliseconds 500
     } else {
-        throw "TeamSpeak laeuft und sperrt die DLL. Beenden, oder -RestartTeamSpeak nutzen."
+        throw "Das geladene Plugin sperrt $target.`nTeamSpeak beenden, oder -RestartTeamSpeak nutzen."
     }
 }
 
-Copy-Item $dll $pluginDir -Force
-Write-Host "Kopiert nach $pluginDir" -ForegroundColor Green
+Copy-Item $dll $target -Force
+Write-Host "Kopiert nach $target" -ForegroundColor Green
 
-if ($RestartTeamSpeak -and $ts3) {
+if ($RestartTeamSpeak -and $ts3 -and $ts3.HasExited) {
     Start-Process $ts3.Path
     Write-Host "TeamSpeak neu gestartet." -ForegroundColor Green
+} elseif ($ts3) {
+    Write-Host "TeamSpeak laeuft noch - fuer einen Neustart ist es selbst zustaendig." -ForegroundColor Yellow
+    Write-Host "Plugins werden nur beim Start eingelesen." -ForegroundColor Yellow
 }
 
 Write-Host "Aktivieren unter: Extras -> Optionen -> Addons"

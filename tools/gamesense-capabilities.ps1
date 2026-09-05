@@ -30,7 +30,7 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet('A', 'B', 'C', 'D', 'E', 'alle')]
+    [ValidateSet('A', 'B', 'C', 'D', 'E', 'F', 'alle')]
     [string]$Only = 'alle',
 
     [string]$Game        = 'TS3_OLED_PROBE',
@@ -71,16 +71,23 @@ Invoke-GS 'game_metadata' @{
 } | Out-Null
 Write-Host "Verbunden mit $base`n" -ForegroundColor DarkGray
 
-function Send-Lines([string]$EventName, [string[]]$Keys, [hashtable]$Frame, [int]$Seconds) {
+function Send-Lines([string]$EventName, [string[]]$Keys, [hashtable]$Frame, [int]$Seconds,
+                    [int]$IconId = 0) {
     $lineDefs = @()
     foreach ($k in $Keys) {
         $lineDefs += @{ 'has-text' = $true; 'context-frame-key' = $k }
     }
+
+    $frameData = @{ lines = $lineDefs }
+    # icon-id gehoert auf das Frame-Objekt, nicht auf die Zeile - und es kostet die
+    # 32 linkesten Pixel, was genau der Punkt von Abschnitt F ist.
+    if ($IconId -ne 0) { $frameData['icon-id'] = $IconId }
+
     Invoke-GS 'bind_game_event' @{
         game = $Game; event = $EventName; value_optional = $true
         handlers = @(@{
             'device-type' = $DeviceType; zone = 'one'; mode = 'screen'
-            datas = @(@{ lines = $lineDefs })
+            datas = @($frameData)
         })
     } | Out-Null
 
@@ -209,6 +216,32 @@ if (Want 'E') {
 
     Note 'Wer gewinnt' (AskText 'Was war zu sehen: nur TS3, nur NowPlaying, oder Wechsel?')
     Note 'Flackern' $(if (Ask 'Hat das Display sichtbar geflackert oder gezuckt?') { 'ja' } else { 'nein' })
+}
+
+# --- F: Textbreite und Bildlauf --------------------------------------------
+if (Want 'F') {
+    Write-Host "`n=== F. Wie viel Text passt, und wird gescrollt? ===" -ForegroundColor Cyan
+    Write-Host "  Ausgeloest durch einen Phase-1-Befund: 'Plugin aktiv' (12 Zeichen) wurde" -ForegroundColor DarkGray
+    Write-Host "  MIT Icon am Ende abgeschnitten - und zwar abgeschnitten, nicht gescrollt." -ForegroundColor DarkGray
+    Write-Host "  Das widerspricht der NowPlaying-Beobachtung, also hier die Messung." -ForegroundColor DarkGray
+
+    # Lineal: die Position des letzten sichtbaren Zeichens ist direkt ablesbar.
+    $ruler = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+    Write-Host "`n  F1: OHNE Icon" -ForegroundColor White
+    Send-Lines 'CAPW1' @('w1') @{ w1 = $ruler } ($HoldSeconds + 4) 0
+    Note 'Breite ohne Icon' (AskText 'Bis zu welchem BUCHSTABEN war es lesbar? (leer = alles)')
+    Note 'Bildlauf ohne Icon' $(if (Ask 'Ist der Text gelaufen (Bildlauf)?') { 'ja' } else { 'nein' })
+
+    Write-Host "`n  F2: MIT Icon (Talking, id 20)" -ForegroundColor White
+    Send-Lines 'CAPW2' @('w1') @{ w1 = $ruler } ($HoldSeconds + 4) 20
+    Note 'Breite mit Icon' (AskText 'Bis zu welchem BUCHSTABEN war es lesbar?')
+    Note 'Bildlauf mit Icon' $(if (Ask 'Ist der Text gelaufen?') { 'ja' } else { 'nein' })
+
+    Write-Host "`n  F3: sehr langer Text ohne Icon - laeuft er dann?" -ForegroundColor White
+    $long = 'Dies ist ein absichtlich sehr langer Text der weit ueber die Zeile hinausgeht'
+    Send-Lines 'CAPW3' @('w1') @{ w1 = $long } ($HoldSeconds + 8) 0
+    Note 'Bildlauf bei langem Text' $(if (Ask 'Ist der lange Text gelaufen?') { 'ja' } else { 'nein' })
 }
 
 # --- Aufraeumen ------------------------------------------------------------

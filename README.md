@@ -86,7 +86,8 @@ src/render/      Composer, Frame, 1bpp-Bitmap
 src/gamesense/   coreProps, WinHTTP, Session-Lifecycle
 src/config/      JSON-Config + Win32-Dialog
 src/util/        Logging, UTF-8/UTF-16
-tools/           Phase-0-Prüfskript, Dev-Install, Paketbau
+tools/           smoke-test (DLL ohne TeamSpeak testen), Phase-0-Proben,
+                 Dev-Install, Paketbau
 third_party/     TeamSpeak-Plugin-SDK (Submodul)
 ```
 

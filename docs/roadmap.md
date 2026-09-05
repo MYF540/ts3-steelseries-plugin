@@ -45,6 +45,25 @@ Phase 1 neu entschieden werden. Der Aufwand bis hierher: ein Skript, kein Code.
 
 ## Phase 1 — Die DLL lädt
 
+> **Stand 2026-09-05: gebaut und im Selbsttest grün.**
+>
+> ```
+> [INFO ] Initialising v0.1.0 (plugin API 26)
+> [INFO ] Worker started
+> [INFO ] GameSense at 127.0.0.1:60193
+> [INFO ] Screen claimed
+> [INFO ] Shutting down
+> [INFO ] Screen released
+> [INFO ] Worker stopped
+> ```
+>
+> Baut warnungsfrei unter `/W4`, x64, alle 12 Exporte unmangled. `tools/smoke-test.ps1`
+> lädt die DLL ohne TeamSpeak und durchläuft init → Anzeige → shutdown; die
+> Bildschirm-Übernahme lag bei 88 ms, die Freigabe war sauber.
+>
+> Offen: Sichtprüfung am Gerät (Icon-Pfad ist neu gegenüber Phase 0) und der Lauf
+> im echten TeamSpeak-Client.
+
 Ziel: TeamSpeak listet das Plugin, aktiviert es, und auf dem OLED steht ein fester Text.
 
 - `src/plugin/plugin.cpp` mit allen Pflicht-Exports, `apiVersion` = 26
@@ -61,6 +80,14 @@ zurück — und das dreimal hintereinander ohne Neustart der Basisstation.
 ---
 
 ## Phase 2 — Echter Zustand
+
+> **Stand 2026-09-05: gebaut, 0 Warnungen unter `/W4 /permissive-`.**
+>
+> Der Selbsttest ohne TeamSpeak belegt zusätzlich ADR 0006: Da ohne Client
+> `connected == false` gilt, bleibt der Frame leer — das Plugin kontaktiert GameSense
+> gar nicht erst und beansprucht den Schirm nie.
+>
+> Offen: Verhalten im echten Client (siehe Abnahme unten).
 
 Ziel: Der `ClientState` bildet ab, was in TeamSpeak passiert. Noch keine hübsche Anzeige.
 
@@ -86,6 +113,20 @@ Muten, Channel wechseln, Server trennen — jeweils genau ein State-Update.
 
 ## Phase 3 — Widgets
 
+> **Stand 2026-09-05: gebaut, 15 Unit-Tests grün, 0 Warnungen.**
+>
+> Acht Widgets registriert. Ausgelöst wurde die Phase durch einen echten Fehlerbericht:
+> Bei stummem Mikrofon wurde der Schirm nie freigegeben. Ursache war ein Modellfehler,
+> nicht die Umsetzung — behoben durch
+> [ADR 0007](decisions/0007-transient-vs-persistent.md) (`demandsScreen`).
+>
+> Die Tests fanden dabei sofort einen zweiten Fehler: Beim Stummschalten stand
+> `"Lobby 3"` über `"Mikro aus"`, weil der Composer nicht danach sortierte, wer den
+> Schirm angefordert hatte.
+>
+> Offen: Konfigurierbarkeit durch den Nutzer (Phase 4). Bis dahin sind alle Widgets
+> aktiv, in Registrierungsreihenfolge.
+
 Ziel: Die vier gewünschten Anzeigen, über die Registry entkoppelt.
 
 - `src/widgets/widget.h` — `IWidget`, `WidgetOutput`, `RenderContext`, `enum class Icon`
@@ -105,6 +146,15 @@ grün ohne TeamSpeak.
 ---
 
 ## Phase 4 — Konfiguration durch den Nutzer
+
+> **Stand 2026-09-05: JSON-Konfiguration fertig, Dialog offen.**
+>
+> `config.json` wird beim ersten Start mit allen bekannten Widgets angelegt; je Widget
+> An/Aus und Dauer (1–60 s, beim Laden begrenzt). Dazu die Buddy-Liste, die
+> `server_join` braucht.
+>
+> Noch offen: der Win32-Dialog und ein Kontextmenü-Eintrag zum Aufnehmen von Buddys,
+> damit man keine UIDs von Hand eintragen muss.
 
 Ziel: Der Nutzer wählt aus, was angezeigt wird — die zweite ausdrückliche Anforderung.
 

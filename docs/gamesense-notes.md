@@ -212,19 +212,52 @@ Weitere vorhandene, hier nicht einschlägige: 1–14 (Spielwerte), 16 Lightning,
 2. **Mit Icon steht weniger Textbreite zur Verfügung.** 32 der 128 Pixel sind weg. Wo
    Platz wichtiger ist als Symbolik, ist `icon-id: 0` richtig.
 
-## Lange Texte laufen von selbst
+## Es gibt keinen Bildlauf — der Composer muss kürzen
 
-Beobachtet an der NowPlaying-App: Text, der nicht in eine Zeile passt, wird von GG als
-**Bildlauf** dargestellt. In der SDK-Doku steht dazu nichts — es ist reines
-Engine-Verhalten.
+**Gemessen mit `gamesense-capabilities.ps1 -Only F`:**
 
-Praktische Folge: **Der Composer soll nicht hart kürzen.** Ein auf 18 Zeichen
-abgeschnittener Channelname ist schlechter als einer, der durchläuft. Kürzung bleibt
-nur die Notbremse für absurde Längen.
+| Layout | lesbar bis | Zeichen | Bildlauf |
+|---|---|---|---|
+| ohne Icon | `P` (angeschnitten) | **~15–16** | nein |
+| mit Icon | `L` | **12** | nein |
+| sehr langer Text | — | — | nein |
+| 3 Zeilen mit Icon *(Phase 1)* | — | **~11–12** | nein |
 
-Nicht zu verwechseln mit `wrap`: Das ist laut Doku die Anzahl **zusätzlicher
-Umbruchzeilen** für eine Textzeile (Default 0), kein Bildlauf. Bei drei verfügbaren
-Zeilen verbraucht `wrap: 1` zwei davon.
+### Kein Bildlauf. Nirgends.
+
+Auch ein absichtlich viel zu langer Text lief nicht durch — er wurde abgeschnitten.
+
+Die Bildlauf-Beobachtung an der NowPlaying-App gilt also **nicht** für JSON-Texthandler.
+NowPlaying erreicht das offenbar anders (GoLisp-Handler, `arg`-Ausdrücke oder eine
+Mehrbild-Sequenz). Für unseren Weg heißt das schlicht: **Was nicht passt, ist weg.**
+
+Damit ist die Regel eindeutig: **Der Composer muss kürzen**, und Widgets müssen von sich
+aus kurz fassen. Eine frühere Fassung dieses Dokuments behauptete das Gegenteil — das war
+aus dem Verhalten einer fremden App geschlossen und ist widerlegt.
+
+### Rund 8 px je Zeichen, überall gleich
+
+Die Zahlen sind über beide Messungen hinweg konsistent:
+
+- ohne Icon: 128 px / ~16 Zeichen = **8 px je Zeichen**
+- mit Icon: 96 px / 12 Zeichen = **8 px je Zeichen**
+
+Die Schriftgröße ist also fest; das Icon kostet exakt die dokumentierten 32 px, was
+**vier Zeichen** entspricht. Als Faustformel für den Composer:
+
+```
+Zeichen je Zeile = 16 ohne Icon,  12 mit Icon
+```
+
+> **Kurz verfolgte Fehlspur:** Zwischenzeitlich sah es so aus, als passten ohne Icon nur
+> sechs Zeichen — was auf eine layoutabhängige Schriftgröße hingedeutet hätte. Ursache
+> war eine Fehlablesung des Lineals: Das abgeschnittene `P` sah aus wie ein `F`. Wer
+> diesen Test wiederholt, sollte beim letzten Zeichen genau hinsehen.
+
+### Nicht zu verwechseln mit `wrap`
+
+`wrap` ist laut Doku die Anzahl **zusätzlicher Umbruchzeilen** für eine Textzeile
+(Default 0), kein Bildlauf. Bei drei verfügbaren Zeilen verbraucht `wrap: 1` zwei davon.
 
 ## Mehrbild-Rotation
 
