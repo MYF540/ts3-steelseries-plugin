@@ -265,7 +265,14 @@ Composer, Dialog und Konfiguration greifen sie automatisch auf.
 
 ## Lizenz
 
-Noch nicht festgelegt. Ohne Lizenzangabe gilt in den meisten Rechtsordnungen „alle
-Rechte vorbehalten" — für ein öffentliches Repository vermutlich nicht gewollt.
+[MIT](LICENSE) — Copyright © 2026 MYF540.
 
-Das TeamSpeak-Plugin-SDK unter `third_party/` hat eigene Lizenzbedingungen.
+Fremde Bestandteile sind in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) aufgeführt.
+Zwei Punkte daraus sind erwähnenswert:
+
+- **`nlohmann/json`** (MIT) ist header-only und damit in der DLL enthalten. Der
+  Lizenzhinweis liegt deshalb auch dem `.ts3_plugin`-Paket bei.
+- Das **TeamSpeak-Plugin-SDK** steht unter *„Copyright © TeamSpeak Systems GmbH. All
+  rights reserved."* — keine Open-Source-Lizenz. Es liegt als Git-Submodul und wird von
+  diesem Repository **nicht mitverteilt**; beim Klonen holt `git submodule update` es
+  direkt von TeamSpeak.

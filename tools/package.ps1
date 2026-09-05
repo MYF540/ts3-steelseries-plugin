@@ -52,6 +52,19 @@ if (Test-Path $out) { Remove-Item $out -Force }
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
+# Lizenztexte gehoeren ins Paket, nicht nur ins Repository: nlohmann/json ist
+# header-only und damit in der DLL enthalten, und die MIT-Lizenz verlangt, dass ihr
+# Hinweis jeder Weitergabe beiliegt. Sie liegen unter plugins/ts3_steelseries/ - dem
+# ueblichen Ressourcenverzeichnis eines Plugins -, damit die Wurzel des Archivs genau
+# das enthaelt, was TeamSpeak dort erwartet.
+$extras = @(
+    @{ Path = (Join-Path $repo 'LICENSE');                 Entry = 'plugins/ts3_steelseries/LICENSE.txt' }
+    @{ Path = (Join-Path $repo 'THIRD-PARTY-NOTICES.md');  Entry = 'plugins/ts3_steelseries/THIRD-PARTY-NOTICES.md' }
+)
+foreach ($extra in $extras) {
+    if (-not (Test-Path $extra.Path)) { throw "Lizenzdatei fehlt: $($extra.Path)" }
+}
+
 $archive = [System.IO.Compression.ZipFile]::Open($out, [System.IO.Compression.ZipArchiveMode]::Create)
 try {
     # Eintragsnamen explizit gesetzt, damit die Struktur unabhaengig vom lokalen
@@ -62,6 +75,12 @@ try {
     [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
         $archive, $dll, 'plugins/ts3_steelseries.dll',
         [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+
+    foreach ($extra in $extras) {
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $archive, $extra.Path, $extra.Entry,
+            [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+    }
 }
 finally {
     $archive.Dispose()
