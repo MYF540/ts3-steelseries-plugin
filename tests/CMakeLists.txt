@@ -26,9 +26,11 @@ FetchContent_Declare(doctest
 FetchContent_MakeAvailable(doctest)
 
 # Everything except the ABI layer, which cannot be meaningfully instantiated without a
-# running TeamSpeak client.
+# running TeamSpeak client, and the settings window, which is Win32 UI with no logic
+# worth asserting on.
 set(TS3SS_TESTABLE ${TS3SS_SOURCES})
 list(FILTER TS3SS_TESTABLE EXCLUDE REGEX "/src/plugin/")
+list(FILTER TS3SS_TESTABLE EXCLUDE REGEX "config_dialog\\.cpp$")
 
 add_executable(ts3ss_tests ${TS3SS_TEST_SOURCES} ${TS3SS_TESTABLE})
 target_include_directories(ts3ss_tests PRIVATE

@@ -1,3 +1,4 @@
+#include "util/i18n.h"
 #include "widgets/registry.h"
 #include "widgets/widget.h"
 
@@ -7,7 +8,7 @@ namespace {
 class PokeWidget final : public IWidget {
 public:
     std::string_view id() const override { return "poke"; }
-    std::string_view displayName() const override { return "Angestupst"; }
+    std::string_view displayName() const override { return tr(Str::WidgetPoke); }
 
     // A poke demands attention by definition, so it outstays a passing message.
     std::chrono::milliseconds defaultDuration() const override { return std::chrono::seconds(8); }
@@ -18,7 +19,7 @@ public:
             return std::nullopt;
 
         WidgetOutput out;
-        out.lines.push_back(fitText("STUPS von", ctx.maxCharsPerLine));
+        out.lines.push_back(fitText(tr(Str::PokeFrom), ctx.maxCharsPerLine));
         out.lines.push_back(fitText(state.lastPoke.who, ctx.maxCharsPerLine));
         if (!state.lastPoke.text.empty() && ctx.maxLines >= 3)
             out.lines.push_back(fitText(state.lastPoke.text, ctx.maxCharsPerLine));
@@ -35,7 +36,7 @@ TS3SS_REGISTER_WIDGET(PokeWidget)
 class ChatMessageWidget final : public IWidget {
 public:
     std::string_view id() const override { return "chat_message"; }
-    std::string_view displayName() const override { return "Neue Nachricht"; }
+    std::string_view displayName() const override { return tr(Str::WidgetChatMessage); }
 
     std::chrono::milliseconds defaultDuration() const override { return std::chrono::seconds(6); }
 

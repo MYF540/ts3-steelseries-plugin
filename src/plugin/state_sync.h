@@ -42,6 +42,10 @@ public:
     void onSelfVariableUpdated(uint64 schid, int flag);
     void onClientMoved(uint64 schid, anyID clientId, uint64 oldChannelId, uint64 newChannelId);
     void onChannelEdited(uint64 schid, uint64 channelId);
+
+    // Another client's variables changed - mute, deaf or away. Needed because the
+    // active/total count would otherwise only refresh when somebody moves.
+    void onClientUpdated(uint64 schid, anyID clientId);
     void onPoked(uint64 schid, const char* fromName, const char* message);
     void onTextMessage(uint64 schid, anyID fromId, const char* fromName, const char* message);
     void onConnectionInfo(uint64 schid, anyID clientId);

@@ -61,6 +61,10 @@ struct ClientState {
     std::string channelName;
     int         channelClientCount = 0;
 
+    // Of those, the ones who can actually take part: neither microphone-muted nor
+    // deafened. "3/7" says something "7" does not - how many people could answer you.
+    int channelActiveCount = 0;
+
     // Own status
     std::string ownNickname;
     bool        inputMuted  = false;  // microphone muted
@@ -100,7 +104,8 @@ struct ClientState {
     friend bool operator==(const ClientState& a, const ClientState& b) {
         return a.connected == b.connected && a.connecting == b.connecting
             && a.serverName == b.serverName && a.channelName == b.channelName
-            && a.channelClientCount == b.channelClientCount && a.ownNickname == b.ownNickname
+            && a.channelClientCount == b.channelClientCount
+            && a.channelActiveCount == b.channelActiveCount && a.ownNickname == b.ownNickname
             && a.inputMuted == b.inputMuted && a.outputMuted == b.outputMuted
             && a.away == b.away && a.talkingWhileMuted == b.talkingWhileMuted
             && a.talkers == b.talkers && a.lastPoke == b.lastPoke

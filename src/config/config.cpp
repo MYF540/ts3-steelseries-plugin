@@ -99,6 +99,8 @@ Config loadConfig(const std::filesystem::path& file) {
                    << Config::kCurrentVersion << ") - it will not be overwritten";
     }
 
+    config.language = languageFromString(parsed.value("language", std::string("auto")));
+
     if (const auto it = parsed.find("display"); it != parsed.end() && it->is_object()) {
         config.maxLines         = it->value("max_lines", config.maxLines);
         config.charsWithIcon    = it->value("chars_with_icon", config.charsWithIcon);
@@ -106,6 +108,18 @@ Config loadConfig(const std::filesystem::path& file) {
         config.holdAfterEmpty =
             std::chrono::milliseconds(it->value("hold_ms", config.holdAfterEmpty.count()));
     }
+
+    if (const auto it = parsed.find("thresholds"); it != parsed.end() && it->is_object()) {
+        config.pingWarnMs     = it->value("ping_ms", config.pingWarnMs);
+        config.packetLossWarn = it->value("packet_loss_percent", config.packetLossWarn);
+    }
+
+    // Clamped rather than rejected: a nonsensical threshold should not stop the plugin,
+    // and silently ignoring it would leave the user wondering why nothing changed.
+    config.pingWarnMs = std::min(std::max(config.pingWarnMs, Config::kMinPingWarnMs),
+                                 Config::kMaxPingWarnMs);
+    config.packetLossWarn = std::min(std::max(config.packetLossWarn, Config::kMinPacketLossWarn),
+                                     Config::kMaxPacketLossWarn);
 
     if (const auto it = parsed.find("widgets"); it != parsed.end() && it->is_array()) {
         for (const auto& entry : *it) {
@@ -155,12 +169,18 @@ bool saveConfig(const std::filesystem::path& file, const Config& config) {
 
     const json document = {
         {"version", Config::kCurrentVersion},
+        {"language", languageToString(config.language)},
         {"display",
          {
              {"max_lines", config.maxLines},
              {"chars_with_icon", config.charsWithIcon},
              {"chars_without_icon", config.charsWithoutIcon},
              {"hold_ms", config.holdAfterEmpty.count()},
+         }},
+        {"thresholds",
+         {
+             {"ping_ms", config.pingWarnMs},
+             {"packet_loss_percent", config.packetLossWarn},
          }},
         {"widgets", widgets},
         {"buddies", config.buddies},

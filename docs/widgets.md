@@ -51,6 +51,22 @@ struct WidgetOutput {
 struct RenderContext {
     int maxLines;         // wie viele Zeilen der Composer noch vergeben kann
     int maxCharsPerLine;  // harte Grenze -- was darüber steht, ist weg (kein Bildlauf)
+
+    // Übergeben statt selbst die Uhr zu lesen: so bleibt "ist das noch frisch genug"
+    // in Tests deterministisch prüfbar.
+    Timestamp now;
+
+    // Die konfigurierte Anzeigedauer DIESES Widgets. Der Composer füllt sie je Widget
+    // aus der Config -- das Widget muss nicht wissen, dass es eine Config gibt.
+    std::chrono::milliseconds eventWindow;
+
+    // Vom Nutzer markierte Buddys (CLIENT_UNIQUE_IDENTIFIER).
+    const std::vector<std::string>* buddies;
+    bool isBuddy(const std::string& uniqueId) const;
+
+    // Warnschwellen für connection_quality, ebenfalls aus der Config.
+    int    pingWarnMs;
+    double packetLossWarn;
 };
 
 class IWidget {
@@ -59,6 +75,12 @@ public:
 
     virtual std::string_view id() const = 0;
     virtual std::string_view displayName() const = 0;
+
+    virtual bool enabledByDefault() const { return true; }
+
+    // Gilt, solange die Config dieses Widget noch nicht kennt. Beim Laden auf
+    // 1-60 s begrenzt.
+    virtual std::chrono::milliseconds defaultDuration() const { return std::chrono::seconds(5); }
 
     virtual std::optional<WidgetOutput> render(const ClientState& state,
                                                const RenderContext& ctx) const = 0;
@@ -105,6 +127,7 @@ relevant ist.
 die `.cpp`.
 
 ```cpp
+#include "util/i18n.h"
 #include "widgets/widget.h"
 #include "widgets/registry.h"
 
@@ -114,7 +137,7 @@ namespace {
 class PingWidget final : public IWidget {
 public:
     std::string_view id() const override { return "ping"; }
-    std::string_view displayName() const override { return "Ping zum Server"; }
+    std::string_view displayName() const override { return tr(Str::WidgetPing); }
 
     std::optional<WidgetOutput> render(const ClientState& state,
                                         const RenderContext&) const override {
@@ -128,7 +151,7 @@ public:
     }
 };
 
-TS3SS_REGISTER_WIDGET(PingWidget);
+TS3SS_REGISTER_WIDGET(PingWidget)
 
 }  // namespace
 }  // namespace ts3ss
@@ -136,6 +159,11 @@ TS3SS_REGISTER_WIDGET(PingWidget);
 
 Die anonyme `namespace`-Klammer ist Absicht: Widget-Klassen sind nie von außen sichtbar,
 der einzige Zugang ist die Registry.
+
+**Kein sichtbarer Text als Literal.** Jede Zeichenkette, die Nutzer sehen — auf dem
+Display wie im Dialog —, kommt aus `tr(Str::…)`. Neue IDs werden in `src/util/i18n.h`
+ergänzt und in `src/util/i18n.cpp` in **beiden** Sprachen eingetragen; ein
+`static_assert` dort bricht den Build ab, wenn eine Übersetzung fehlt.
 
 ### 2. Fertig
 
@@ -241,17 +269,24 @@ Für jedes Widget mindestens: der aktive Fall, der `nullopt`-Fall, und der Fall
 | `channel_join` | „Name / ist da" | `Connect` | 20 | Ereignis (5 s) |
 | `talkers` | bis zu 3 Nicknames, einer je Zeile | `Talking` | 10 | solange jemand spricht |
 | `mute_status` | Mikro aus / Ton aus / Abwesend | `Muted` | 0 | Ereignis (4 s) |
-| `channel_info` | Channelname + Nutzerzahl | — | 0 | Ereignis (4 s) |
+| `channel_info` | Channelname + aktiv/gesamt, z. B. `Lobby 3/7` | — | 0 | Ereignis (4 s) |
 
 Alle Dauern sind pro Widget konfigurierbar (1–60 s), siehe
 [configuration.md](configuration.md).
 
-`connection_quality` meldet sich **nur bei schlechten Werten** (ab 150 ms Ping bzw. 2 %
-Paketverlust). Ein dauerhaft eingeblendeter Ping wäre ein Zustand und keine Information:
-Ein guter Ping sagt einem nichts, was man wissen musste.
+`connection_quality` meldet sich **nur bei schlechten Werten** — standardmäßig ab 150 ms
+Ping oder 2 % Paketverlust, beides in den Einstellungen änderbar. Ein dauerhaft
+eingeblendeter Ping wäre ein Zustand und keine Information: Ein guter Ping sagt einem
+nichts, was man wissen musste.
 
 `server_join` bleibt still, solange die Buddy-Liste leer ist — sonst wäre auf einem gut
 besuchten Server jede Verbindung eine Displayübernahme.
+
+`channel_info` zeigt `aktiv/gesamt` statt nur der Gesamtzahl. Als inaktiv zählt, wer
+stummgeschaltet, auf Ton-aus oder **abwesend** ist — alle drei sind da, aber nicht
+ansprechbar. Abwesend wird dabei am leichtesten vergessen: Wer kurz weg ist, ist genauso
+unerreichbar wie jemand mit stummem Mikrofon. `3/7` beantwortet die Frage,
+die einen tatsächlich interessiert; `7` verschweigt sie.
 
 Die letzten beiden sind die Zustands-Widgets: Sie zeigen dauerhaft etwas an, **fordern
 den Schirm aber nur direkt nach der Änderung**. Danach fahren sie nur noch mit, wenn ein

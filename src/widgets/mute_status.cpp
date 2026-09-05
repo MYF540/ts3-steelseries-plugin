@@ -1,3 +1,4 @@
+#include "util/i18n.h"
 #include "widgets/registry.h"
 #include "widgets/widget.h"
 
@@ -15,7 +16,7 @@ namespace {
 class MuteStatusWidget final : public IWidget {
 public:
     std::string_view id() const override { return "mute_status"; }
-    std::string_view displayName() const override { return "Mute / Deaf"; }
+    std::string_view displayName() const override { return tr(Str::WidgetMuteStatus); }
 
     // A mute toggle is worth a brief look, not a lingering banner.
     std::chrono::milliseconds defaultDuration() const override { return std::chrono::seconds(4); }
@@ -34,11 +35,11 @@ public:
         // Deaf implies microphone mute per the TeamSpeak header, so saying both would
         // be redundant.
         if (state.outputMuted)
-            out.lines.push_back("Ton aus");
+            out.lines.push_back(tr(Str::SoundOff));
         else if (state.inputMuted)
-            out.lines.push_back("Mikro aus");
+            out.lines.push_back(tr(Str::MicOff));
         else
-            out.lines.push_back("Abwesend");
+            out.lines.push_back(tr(Str::AwayShort));
 
         out.lines.back() = fitText(out.lines.back(), ctx.maxCharsPerLine);
 
@@ -56,7 +57,7 @@ TS3SS_REGISTER_WIDGET(MuteStatusWidget)
 class TalkingWhileMutedWidget final : public IWidget {
 public:
     std::string_view id() const override { return "talking_while_muted"; }
-    std::string_view displayName() const override { return "Stumm gesprochen"; }
+    std::string_view displayName() const override { return tr(Str::WidgetTalkingWhileMuted); }
 
     std::optional<WidgetOutput> render(const ClientState& state,
                                        const RenderContext& ctx) const override {
@@ -64,8 +65,8 @@ public:
             return std::nullopt;
 
         WidgetOutput out;
-        out.lines         = {fitText("MIKRO AUS!", ctx.maxCharsPerLine),
-                             fitText("du sprichst", ctx.maxCharsPerLine)};
+        out.lines         = {fitText(tr(Str::MutedAlert), ctx.maxCharsPerLine),
+                             fitText(tr(Str::MutedAlertLine2), ctx.maxCharsPerLine)};
         out.icon          = Icon::Muted;
         out.demandsScreen = true;
         out.priority      = 100;  // nothing outranks this

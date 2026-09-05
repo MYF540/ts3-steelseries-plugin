@@ -19,13 +19,16 @@
 #include "ts3_functions.h"
 
 #include "config/config.h"
+#include "config/config_dialog.h"
 #include "core/state_store.h"
 #include "core/worker.h"
+#include "gamesense/core_props.h"
 #include "plugin/state_sync.h"
 #include "plugin/ts3_context.h"
 #include "render/composer.h"
 #include "render/frame.h"
 #include "widgets/registry.h"
+#include "util/i18n.h"
 #include "util/log.h"
 #include "util/win_paths.h"
 #include "version.h"
@@ -96,6 +99,88 @@ ts3ss::Frame frameFromState() {
         .compose(g_store.snapshot(), std::chrono::steady_clock::now());
 }
 
+// --- Settings dialog -------------------------------------------------------
+
+void openSettings() {
+    ts3ss::ConfigDialog::showAsync(
+        currentConfig(),
+        [](const ts3ss::Config& edited) {
+            ts3ss::saveConfig(ts3ss::configFilePath(), edited);
+            {
+                std::lock_guard<std::mutex> lock(g_configMutex);
+                g_config = std::make_shared<const ts3ss::Config>(edited);
+            }
+            ts3ss::setLanguage(edited.language);
+
+            // Hot reload: no TeamSpeak restart. The worker picks up the new pointer on
+            // its next tick, and a frame already in flight finishes on the old config
+            // rather than changing halfway through.
+            if (g_worker)
+                g_worker->notifyChanged();
+
+            TS3SS_INFO << "Settings applied";
+        },
+        []() -> std::string {
+            // "Nothing appears on the display" has several possible causes; without
+            // this line the only way to tell them apart is reading the log.
+            if (const auto address = ts3ss::findGameSenseAddress())
+                return std::string(ts3ss::tr(ts3ss::Str::StatusConnected)) + " (" + *address + ")";
+            return ts3ss::tr(ts3ss::Str::StatusNoGameSense);
+        });
+}
+
+// Menu ids. Reported back through ts3plugin_onMenuItemEvent.
+enum MenuId {
+    kMenuGlobalSettings = 1,
+    kMenuClientAddBuddy = 2,
+};
+
+struct PluginMenuItem* createMenuItem(enum PluginMenuType type, int id, const char* text) {
+    auto* item = static_cast<struct PluginMenuItem*>(malloc(sizeof(struct PluginMenuItem)));
+    if (!item)
+        return nullptr;
+
+    item->type = type;
+    item->id   = id;
+    strncpy_s(item->text, PLUGIN_MENU_BUFSZ, text, _TRUNCATE);
+    item->icon[0] = '\0';  // no icon files shipped
+    return item;
+}
+
+// Adds the client behind a context-menu click to the buddy list.
+//
+// Necessary because TeamSpeak's own Friend/Foe manager is not exposed to plugins at
+// all, so buddies have to be collected by us. Storing the unique identifier rather than
+// the nickname is what makes the entry survive a rename.
+void addBuddy(uint64 schid, anyID clientId) {
+    const auto uid = g_context.clientString(schid, clientId, CLIENT_UNIQUE_IDENTIFIER);
+    if (!uid || uid->empty()) {
+        TS3SS_WARN << "Could not read unique identifier for client " << clientId;
+        return;
+    }
+
+    auto config = currentConfig();
+    if (!config)
+        return;
+
+    ts3ss::Config edited = *config;
+    if (edited.isBuddy(*uid)) {
+        TS3SS_INFO << "Already a buddy: " << *uid;
+        return;
+    }
+
+    edited.buddies.push_back(*uid);
+    ts3ss::saveConfig(ts3ss::configFilePath(), edited);
+
+    {
+        std::lock_guard<std::mutex> lock(g_configMutex);
+        g_config = std::make_shared<const ts3ss::Config>(edited);
+    }
+
+    const auto name = g_context.clientString(schid, clientId, CLIENT_NICKNAME).value_or(*uid);
+    TS3SS_INFO << "Added buddy: " << name;
+}
+
 }  // namespace
 
 extern "C" {
@@ -144,6 +229,7 @@ PLUGINS_EXPORTDLL int ts3plugin_init() {
             std::lock_guard<std::mutex> lock(g_configMutex);
             g_config = std::make_shared<const ts3ss::Config>(loaded);
         }
+        ts3ss::setLanguage(currentConfig()->language);
 
         ts3ss::WorkerConfig workerConfig;
         workerConfig.holdAfterEmpty = currentConfig()->holdAfterEmpty;
@@ -178,7 +264,11 @@ PLUGINS_EXPORTDLL void ts3plugin_shutdown() {
 
         // Joins the worker, which releases the display on its way out. Must happen
         // before the log sink is dropped, so the release is still traceable.
-        // Sync first: it holds a callback into the worker, so it must stop poking one
+        // The dialog runs on its own thread inside this DLL. If it outlived unload it
+        // would be executing freed code, so it goes first.
+        ts3ss::ConfigDialog::shutdown();
+
+        // Sync next: it holds a callback into the worker, so it must stop poking one
         // that is being torn down.
         g_sync.reset();
 
@@ -214,9 +304,58 @@ PLUGINS_EXPORTDLL void ts3plugin_registerPluginID(const char* id) {
 // mismatch across the boundary.
 PLUGINS_EXPORTDLL void ts3plugin_freeMemory(void* data) { free(data); }
 
+// Enables the "Settings" button next to the plugin in TeamSpeak's addon list.
 PLUGINS_EXPORTDLL int ts3plugin_offersConfigure() {
-    // The configuration dialog arrives in phase 4.
-    return PLUGIN_OFFERS_NO_CONFIGURE;
+    return PLUGIN_OFFERS_CONFIGURE_NEW_THREAD;
+}
+
+PLUGINS_EXPORTDLL void ts3plugin_configure(void* handle, void* qParentWidget) {
+    // Both are Qt objects. We deliberately do not touch Qt (ADR 0001) and open a plain
+    // Win32 window with no parent instead.
+    (void)handle;
+    (void)qParentWidget;
+    guard("ts3plugin_configure", [] { openSettings(); });
+}
+
+// Plugins menu in the main window, plus a client context-menu entry for buddies.
+PLUGINS_EXPORTDLL void ts3plugin_initMenus(struct PluginMenuItem*** menuItems, char** menuIcon) {
+    // The array is NULL-terminated, hence the extra slot. TeamSpeak frees every
+    // allocation here through ts3plugin_freeMemory.
+    constexpr size_t kCount = 2;
+    *menuItems = static_cast<struct PluginMenuItem**>(
+        malloc(sizeof(struct PluginMenuItem*) * (kCount + 1)));
+    if (!*menuItems) {
+        *menuIcon = nullptr;
+        return;
+    }
+
+    (*menuItems)[0] =
+        createMenuItem(PLUGIN_MENU_TYPE_GLOBAL, kMenuGlobalSettings, "Einstellungen");
+    (*menuItems)[1] =
+        createMenuItem(PLUGIN_MENU_TYPE_CLIENT, kMenuClientAddBuddy, "Als Buddy merken");
+    (*menuItems)[kCount] = nullptr;
+
+    // No icon files are shipped, so no icon is requested.
+    *menuIcon = nullptr;
+}
+
+PLUGINS_EXPORTDLL void ts3plugin_onMenuItemEvent(uint64 schid, enum PluginMenuType type,
+                                                 int menuItemID, uint64 selectedItemID) {
+    guard("onMenuItemEvent", [&] {
+        switch (menuItemID) {
+            case kMenuGlobalSettings:
+                openSettings();
+                break;
+
+            case kMenuClientAddBuddy:
+                if (type == PLUGIN_MENU_TYPE_CLIENT)
+                    addBuddy(schid, static_cast<anyID>(selectedItemID));
+                break;
+
+            default:
+                break;
+        }
+    });
 }
 
 PLUGINS_EXPORTDLL int ts3plugin_requestAutoload() { return 0; }
@@ -297,6 +436,20 @@ PLUGINS_EXPORTDLL void ts3plugin_onClientMoveTimeoutEvent(uint64 schid, anyID cl
     guard("onClientMoveTimeoutEvent", [&] {
         if (g_sync)
             g_sync->onClientMoved(schid, clientID, oldChannelID, newChannelID);
+    });
+}
+
+// Another client's mute, deaf or away flag changed. Without this the active/total count
+// in the channel line would only refresh when somebody moves.
+PLUGINS_EXPORTDLL void ts3plugin_onUpdateClientEvent(uint64 schid, anyID clientID,
+                                                     anyID invokerID, const char* invokerName,
+                                                     const char* invokerUniqueIdentifier) {
+    (void)invokerID;
+    (void)invokerName;
+    (void)invokerUniqueIdentifier;
+    guard("onUpdateClientEvent", [&] {
+        if (g_sync)
+            g_sync->onClientUpdated(schid, clientID);
     });
 }
 

@@ -147,14 +147,21 @@ grün ohne TeamSpeak.
 
 ## Phase 4 — Konfiguration durch den Nutzer
 
-> **Stand 2026-09-05: JSON-Konfiguration fertig, Dialog offen.**
+> **Stand 2026-09-05: abgeschlossen.**
 >
 > `config.json` wird beim ersten Start mit allen bekannten Widgets angelegt; je Widget
-> An/Aus und Dauer (1–60 s, beim Laden begrenzt). Dazu die Buddy-Liste, die
-> `server_join` braucht.
+> An/Aus, Reihenfolge und Dauer (1–60 s, beim Laden begrenzt), dazu die Buddy-Liste.
 >
-> Noch offen: der Win32-Dialog und ein Kontextmenü-Eintrag zum Aufnehmen von Buddys,
-> damit man keine UIDs von Hand eintragen muss.
+> Der Win32-Dialog ist über beide gewünschten Wege erreichbar — den *Einstellungen*-
+> Knopf im Addon-Manager und *Plugins → TS3 SteelSeries OLED → Einstellungen*. Beide
+> öffnen ihn auf einem eigenen Thread, weil der Menüeintrag auf dem UI-Thread des
+> Clients ankommt und eine modale Schleife TeamSpeak dort einfrieren würde.
+>
+> Buddys nimmt man per Rechtsklick auf einen Nutzer auf; gespeichert wird der
+> `CLIENT_UNIQUE_IDENTIFIER`, damit der Eintrag eine Umbenennung übersteht.
+>
+> Verifiziert ohne TeamSpeak über `tools/smoke-test.ps1 -Configure`, das
+> `ts3plugin_configure` aufruft; das Fenster erscheint als sichtbarer `#32770`-Dialog.
 
 Ziel: Der Nutzer wählt aus, was angezeigt wird — die zweite ausdrückliche Anforderung.
 

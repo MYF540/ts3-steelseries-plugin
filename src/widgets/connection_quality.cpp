@@ -1,13 +1,9 @@
+#include "util/i18n.h"
 #include "widgets/registry.h"
 #include "widgets/widget.h"
 
 namespace ts3ss {
 namespace {
-
-// Thresholds at which a connection stops being merely imperfect and starts being the
-// reason people cannot understand you.
-constexpr int    kPingWarnMs      = 150;
-constexpr double kPacketLossWarn  = 2.0;   // percent
 
 // Ping and packet loss - but only when they are bad.
 //
@@ -21,15 +17,17 @@ constexpr double kPacketLossWarn  = 2.0;   // percent
 class ConnectionQualityWidget final : public IWidget {
 public:
     std::string_view id() const override { return "connection_quality"; }
-    std::string_view displayName() const override { return "Ping / Paketverlust"; }
+    std::string_view displayName() const override { return tr(Str::WidgetConnectionQuality); }
 
     std::optional<WidgetOutput> render(const ClientState& state,
                                        const RenderContext& ctx) const override {
         if (!state.connected)
             return std::nullopt;
 
-        const bool badPing = state.pingMs >= 0 && state.pingMs >= kPingWarnMs;
-        const bool badLoss = state.packetLoss >= kPacketLossWarn;
+        // pingMs < 0 means "not measured yet", which is not the same as a good
+        // connection - staying silent then is the honest answer.
+        const bool badPing = state.pingMs >= 0 && state.pingMs >= ctx.pingWarnMs;
+        const bool badLoss = state.packetLoss >= ctx.packetLossWarn;
 
         if (!badPing && !badLoss)
             return std::nullopt;
@@ -43,10 +41,10 @@ public:
             // Packet loss is the more damaging of the two: high ping is annoying, loss
             // makes words disappear.
             const int percent = static_cast<int>(state.packetLoss + 0.5);
-            out.lines.push_back(fitText("Paketverlust", ctx.maxCharsPerLine));
+            out.lines.push_back(fitText(tr(Str::PacketLoss), ctx.maxCharsPerLine));
             out.lines.push_back(fitText(std::to_string(percent) + "%", ctx.maxCharsPerLine));
         } else {
-            out.lines.push_back(fitText("Ping hoch", ctx.maxCharsPerLine));
+            out.lines.push_back(fitText(tr(Str::PingHigh), ctx.maxCharsPerLine));
             out.lines.push_back(fitText(std::to_string(state.pingMs) + " ms", ctx.maxCharsPerLine));
         }
 

@@ -1,6 +1,9 @@
 * text=auto eol=lf
 *.sln  text eol=crlf
-*.rc   text eol=crlf working-tree-encoding=UTF-16LE
+# UTF-8 with a code_page(65001) pragma, not the UTF-16 that the Visual Studio resource
+# editor would write. All user-visible strings are set from C++ at WM_INITDIALOG, so the
+# .rc itself stays pure ASCII and cannot be broken by an encoding mishap.
+*.rc   text eol=crlf
 *.ini  text eol=crlf
 *.ps1  text eol=crlf
 *.png  binary

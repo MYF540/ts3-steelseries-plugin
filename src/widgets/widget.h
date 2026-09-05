@@ -49,6 +49,11 @@ struct RenderContext {
     // client-internal and not exposed to plugins, so this is our own.
     const std::vector<std::string>* buddies = nullptr;
 
+    // Above these, connection_quality speaks up. Configurable because "bad" depends on
+    // the connection and on how readily the user wants to be interrupted.
+    int    pingWarnMs     = 150;
+    double packetLossWarn = 2.0;
+
     bool isBuddy(const std::string& uniqueId) const;
 };
 

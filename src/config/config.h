@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "util/i18n.h"
+
 namespace ts3ss {
 
 struct WidgetConfig {
@@ -24,12 +26,25 @@ struct Config {
 
     int version = kCurrentVersion;
 
+    Language language = Language::Auto;
+
     // Display geometry. Measured values, see docs/gamesense-notes.md.
     int maxLines         = 3;
     int charsWithIcon    = 12;
     int charsWithoutIcon = 16;
 
     std::chrono::milliseconds holdAfterEmpty{6000};
+
+    // Above these, connection_quality speaks up. What counts as "bad" depends on the
+    // connection and on how much the user is willing to be interrupted, so it is a
+    // setting rather than a constant.
+    int    pingWarnMs       = 150;
+    double packetLossWarn   = 2.0;  // percent
+
+    static constexpr int    kMinPingWarnMs     = 20;
+    static constexpr int    kMaxPingWarnMs     = 2000;
+    static constexpr double kMinPacketLossWarn = 0.1;
+    static constexpr double kMaxPacketLossWarn = 100.0;
 
     // Display order. Widgets missing here are appended with their own defaults on load,
     // so a new version's widgets appear without anyone having to delete the file.

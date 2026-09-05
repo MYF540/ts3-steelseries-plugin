@@ -81,6 +81,7 @@ configure_file(
 
 target_include_directories(ts3_steelseries PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources"   # resource.h, shared with plugin.rc
     "${CMAKE_BINARY_DIR}/generated"
     "${TS3_SDK_INCLUDE}"
 )

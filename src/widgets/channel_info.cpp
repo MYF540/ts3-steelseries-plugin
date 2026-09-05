@@ -1,3 +1,4 @@
+#include "util/i18n.h"
 #include "widgets/registry.h"
 #include "widgets/widget.h"
 
@@ -14,7 +15,7 @@ namespace {
 class ChannelInfoWidget final : public IWidget {
 public:
     std::string_view id() const override { return "channel_info"; }
-    std::string_view displayName() const override { return "Channel"; }
+    std::string_view displayName() const override { return tr(Str::WidgetChannelInfo); }
 
     std::chrono::milliseconds defaultDuration() const override { return std::chrono::seconds(4); }
 
@@ -28,9 +29,17 @@ public:
         // them more than it needs a symbol.
         out.icon = Icon::None;
 
+        // "Lobby 3/7" - active of total. Inactive means microphone-muted or deafened,
+        // i.e. present but unable to answer, which is what the bare total hides.
+        //
+        // Separated by a space rather than " - ": at twelve characters a line, three
+        // characters of punctuation is a quarter of a channel name, and there is no
+        // scrolling to recover what gets clipped.
         std::string line = state.channelName;
-        if (state.channelClientCount > 0)
-            line += " " + std::to_string(state.channelClientCount);
+        if (state.channelClientCount > 0) {
+            line += " " + std::to_string(state.channelActiveCount) + "/"
+                  + std::to_string(state.channelClientCount);
+        }
 
         out.lines         = {fitText(line, ctx.maxCharsPerLine)};
         out.demandsScreen = isFresh(state.channelChangedAt, ctx.now, ctx.eventWindow);
@@ -44,7 +53,7 @@ TS3SS_REGISTER_WIDGET(ChannelInfoWidget)
 class ChannelJoinWidget final : public IWidget {
 public:
     std::string_view id() const override { return "channel_join"; }
-    std::string_view displayName() const override { return "Betritt Channel"; }
+    std::string_view displayName() const override { return tr(Str::WidgetChannelJoin); }
 
     std::chrono::milliseconds defaultDuration() const override { return std::chrono::seconds(5); }
 
@@ -55,7 +64,7 @@ public:
 
         WidgetOutput out;
         out.lines         = {fitText(state.lastJoin.who, ctx.maxCharsPerLine),
-                             fitText("ist da", ctx.maxCharsPerLine)};
+                             fitText(tr(Str::IsHere), ctx.maxCharsPerLine)};
         out.icon          = Icon::Connect;
         out.demandsScreen = true;
         out.priority      = 20;

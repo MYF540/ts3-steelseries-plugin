@@ -91,6 +91,10 @@ Frame Composer::compose(const ClientState& state, Timestamp now) const {
     ctx.maxLines = config_ ? config_->maxLines : 3;
     ctx.now      = now;
     ctx.buddies  = config_ ? &config_->buddies : nullptr;
+    if (config_) {
+        ctx.pingWarnMs     = config_->pingWarnMs;
+        ctx.packetLossWarn = config_->packetLossWarn;
+    }
 
     const int withIcon    = config_ ? config_->charsWithIcon : 12;
     const int withoutIcon = config_ ? config_->charsWithoutIcon : 16;

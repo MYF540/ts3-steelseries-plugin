@@ -147,6 +147,7 @@ void StateSync::refreshChannel(ClientState& state) const {
     if (ownChannel_ == 0) {
         state.channelName        = {};
         state.channelClientCount = 0;
+        state.channelActiveCount = 0;
         return;
     }
 
@@ -157,8 +158,27 @@ void StateSync::refreshChannel(ClientState& state) const {
     if (name != state.channelName)
         state.channelChangedAt = std::chrono::steady_clock::now();
 
-    state.channelName        = name;
-    state.channelClientCount = static_cast<int>(ts3_.channelClients(activeSchid_, ownChannel_).size());
+    state.channelName = name;
+
+    const auto clients       = ts3_.channelClients(activeSchid_, ownChannel_);
+    state.channelClientCount = static_cast<int>(clients.size());
+
+    // Inactive means present but unable to take part: microphone muted, speakers muted,
+    // or flagged away.
+    //
+    // Deaf implies mic mute per the TeamSpeak header, but all three are checked
+    // separately because a client can be mic-muted without being deaf, and away without
+    // either. Away is the one people forget - someone who stepped out is exactly as
+    // unreachable as someone muted.
+    int active = 0;
+    for (anyID id : clients) {
+        const bool micMuted = ts3_.clientInt(activeSchid_, id, CLIENT_INPUT_MUTED).value_or(0) != 0;
+        const bool deaf = ts3_.clientInt(activeSchid_, id, CLIENT_OUTPUT_MUTED).value_or(0) != 0;
+        const bool away = ts3_.clientInt(activeSchid_, id, CLIENT_AWAY).value_or(0) != 0;
+        if (!micMuted && !deaf && !away)
+            ++active;
+    }
+    state.channelActiveCount = active;
 }
 
 void StateSync::refreshTalkers(ClientState& state) const {
@@ -336,6 +356,20 @@ void StateSync::onChannelEdited(uint64 schid, uint64 channelId) {
     if (!isActive(schid) || channelId != ownChannel_)
         return;
 
+    commit([this](ClientState& state) { refreshChannel(state); });
+}
+
+void StateSync::onClientUpdated(uint64 schid, anyID clientId) {
+    if (!isActive(schid))
+        return;
+
+    // Only members of our own channel affect the active/total count.
+    const auto channel = ts3_.channelOfClient(schid, clientId);
+    if (!channel || *channel != ownChannel_)
+        return;
+
+    // refreshChannel recounts; commit() drops the update if nothing actually changed,
+    // so the frequent no-op case costs a comparison rather than a screen update.
     commit([this](ClientState& state) { refreshChannel(state); });
 }
 

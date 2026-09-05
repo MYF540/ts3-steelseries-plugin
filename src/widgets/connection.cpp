@@ -1,3 +1,4 @@
+#include "util/i18n.h"
 #include "widgets/registry.h"
 #include "widgets/widget.h"
 
@@ -13,7 +14,7 @@ namespace {
 class ConnectionWidget final : public IWidget {
 public:
     std::string_view id() const override { return "connection"; }
-    std::string_view displayName() const override { return "Verbindungsstatus"; }
+    std::string_view displayName() const override { return tr(Str::WidgetConnection); }
 
     std::chrono::milliseconds defaultDuration() const override { return std::chrono::seconds(5); }
 
@@ -23,7 +24,7 @@ public:
 
         if (state.connecting) {
             WidgetOutput out;
-            out.lines         = {fitText("Verbinde...", ctx.maxCharsPerLine)};
+            out.lines         = {fitText(tr(Str::Connecting), ctx.maxCharsPerLine)};
             out.icon          = Icon::Connect;
             out.demandsScreen = true;
             out.priority      = 40;
@@ -37,7 +38,7 @@ public:
                 return std::nullopt;
 
             WidgetOutput out;
-            out.lines         = {fitText("Getrennt", ctx.maxCharsPerLine)};
+            out.lines         = {fitText(tr(Str::Disconnected), ctx.maxCharsPerLine)};
             out.icon          = Icon::Disconnect;
             out.demandsScreen = true;
             out.priority      = 40;
@@ -48,7 +49,7 @@ public:
             return std::nullopt;
 
         WidgetOutput out;
-        out.lines = {fitText(state.serverName.empty() ? "Verbunden" : state.serverName,
+        out.lines = {fitText(state.serverName.empty() ? std::string(tr(Str::Connected)) : state.serverName,
                              ctx.maxCharsPerLine)};
         out.icon          = Icon::Connect;
         out.demandsScreen = true;

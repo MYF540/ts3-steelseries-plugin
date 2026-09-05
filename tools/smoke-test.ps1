@@ -31,7 +31,12 @@ param(
     [ValidateSet('debug', 'release')]
     [string]$Preset = 'debug',
 
-    [int]$HoldSeconds = 10
+    [int]$HoldSeconds = 10,
+
+    # Ruft zusaetzlich ts3plugin_configure auf und oeffnet damit den Einstellungsdialog.
+    # Der Dialog laeuft auf einem eigenen Thread, der Aufruf kehrt sofort zurueck - das
+    # Fenster bleibt bis zum shutdown offen, also -HoldSeconds hoch genug waehlen.
+    [switch]$Configure
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,7 +54,20 @@ $staged = Join-Path $env:TEMP ("ts3ss-smoke-{0}.dll" -f ([guid]::NewGuid().ToStr
 Copy-Item $dll $staged
 
 $logFile = Join-Path $env:APPDATA 'TS3Client\plugins\ts3_steelseries\ts3_steelseries.log'
-if (Test-Path $logFile) { Remove-Item $logFile -Force }
+
+# Laeuft TeamSpeak mit geladenem Plugin, haelt es dieselbe Logdatei offen - loeschen
+# schlaegt dann fehl. Statt daran abzubrechen wird nur gemerkt, wie weit die Datei
+# schon war, und am Ende der neu hinzugekommene Teil gezeigt.
+$logOffset = 0
+if (Test-Path $logFile) {
+    try {
+        Remove-Item $logFile -Force -ErrorAction Stop
+    } catch {
+        $logOffset = (Get-Content $logFile -ErrorAction SilentlyContinue | Measure-Object -Line).Lines
+        Write-Host "Hinweis: Logdatei ist gesperrt - laeuft TeamSpeak mit geladenem Plugin?" -ForegroundColor Yellow
+        Write-Host "         Zwei Instanzen schreiben dann gleichzeitig ins Log und aufs Display." -ForegroundColor Yellow
+    }
+}
 
 # Die Delegate-Bindung liegt komplett in C#: PowerShell 5.1 kennt keine Syntax fuer
 # generische Methodenaufrufe, ein ::Bind[T](...) waere ein Parserfehler.
@@ -68,6 +86,7 @@ public static class Ts3SsAbi {
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int    IntFn();
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate void   VoidFn();
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate IntPtr StrFn();
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate void   ConfFn(IntPtr a, IntPtr b);
 
     private static IntPtr _module = IntPtr.Zero;
 
@@ -95,6 +114,7 @@ public static class Ts3SsAbi {
     public static string Version()    { return CallStr("ts3plugin_version"); }
     public static int    ApiVersion() { return ((IntFn)Bind("ts3plugin_apiVersion", typeof(IntFn)))(); }
     public static int    Init()       { return ((IntFn)Bind("ts3plugin_init", typeof(IntFn)))(); }
+    public static void   Configure()  { ((ConfFn)Bind("ts3plugin_configure", typeof(ConfFn)))(IntPtr.Zero, IntPtr.Zero); }
     public static void   Shutdown()   { ((VoidFn)Bind("ts3plugin_shutdown", typeof(VoidFn)))(); }
 }
 '@
@@ -113,6 +133,12 @@ try {
     if ($rc -eq 0) { Write-Host "  Rueckgabe 0 (Erfolg)" -ForegroundColor Green }
     else { Write-Host "  Rueckgabe $rc (FEHLER)" -ForegroundColor Red }
 
+    if ($Configure) {
+        Write-Host "`n=== ts3plugin_configure (Einstellungsdialog) ===" -ForegroundColor Cyan
+        [Ts3SsAbi]::Configure()
+        Write-Host "  Aufruf zurueckgekehrt - Dialog laeuft auf eigenem Thread" -ForegroundColor Green
+    }
+
     Write-Host "`n  Halte $HoldSeconds s. JETZT auf die Basisstation schauen." -ForegroundColor Yellow
     Start-Sleep -Seconds $HoldSeconds
 
@@ -128,7 +154,12 @@ finally {
 
 Write-Host "`n=== Logdatei ===" -ForegroundColor Cyan
 if (Test-Path $logFile) {
-    Get-Content $logFile | ForEach-Object {
+    $lines = Get-Content $logFile -ErrorAction SilentlyContinue
+    if ($logOffset -gt 0 -and $lines.Count -gt $logOffset) {
+        Write-Host "  (nur die $($lines.Count - $logOffset) neuen Zeilen)" -ForegroundColor DarkGray
+        $lines = $lines[$logOffset..($lines.Count - 1)]
+    }
+    $lines | ForEach-Object {
         $color = if ($_ -match '\[ERROR\]') { 'Red' } elseif ($_ -match '\[WARN') { 'Yellow' } else { 'Gray' }
         Write-Host "  $_" -ForegroundColor $color
     }

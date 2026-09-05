@@ -1,3 +1,4 @@
+#include "util/i18n.h"
 #include "widgets/registry.h"
 #include "widgets/widget.h"
 
@@ -17,7 +18,7 @@ namespace {
 class ServerJoinWidget final : public IWidget {
 public:
     std::string_view id() const override { return "server_join"; }
-    std::string_view displayName() const override { return "Buddy kommt online"; }
+    std::string_view displayName() const override { return tr(Str::WidgetServerJoin); }
 
     std::chrono::milliseconds defaultDuration() const override { return std::chrono::seconds(6); }
 
@@ -33,7 +34,7 @@ public:
 
         WidgetOutput out;
         out.lines         = {fitText(state.lastServerJoin.who, ctx.maxCharsPerLine),
-                             fitText("ist online", ctx.maxCharsPerLine)};
+                             fitText(tr(Str::IsOnline), ctx.maxCharsPerLine)};
         out.icon          = Icon::Connect;
         out.demandsScreen = true;
         out.priority      = 25;  // above channel_join, below chat

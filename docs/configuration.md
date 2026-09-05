@@ -18,12 +18,18 @@ kennt** — man muss also nichts von Hand ergänzen, um zu sehen, was es gibt.
 ```json
 {
   "version": 1,
+  "language": "auto",
 
   "display": {
     "max_lines": 3,
     "chars_with_icon": 12,
     "chars_without_icon": 16,
     "hold_ms": 6000
+  },
+
+  "thresholds": {
+    "ping_ms": 150,
+    "packet_loss_percent": 2.0
   },
 
   "widgets": [
@@ -42,6 +48,33 @@ kennt** — man muss also nichts von Hand ergänzen, um zu sehen, was es gibt.
   "buddies": []
 }
 ```
+
+### `language`
+
+`"auto"` (Standard), `"de"` oder `"en"`. `auto` folgt der Windows-Anzeigesprache:
+Deutsch auf einem deutschen Windows, sonst Englisch.
+
+Betrifft beides — die Texte auf dem Display *und* den Einstellungsdialog. Der
+Sprachwechsel greift beim Speichern sofort; nur der bereits geöffnete Dialog behält
+seine Beschriftungen bis zum nächsten Öffnen.
+
+Übersetzt wird über eine Tabelle in `src/util/i18n.cpp`. Ein `static_assert` verknüpft
+sie mit dem `Str`-Enum: Wer eine ID ergänzt und die Übersetzung vergisst, bekommt einen
+Compile-Fehler statt einer leeren Zeile auf dem Display.
+
+### `thresholds`
+
+Ab wann `connection_quality` sich meldet.
+
+| Schlüssel | Standard | Grenzen |
+|---|---|---|
+| `ping_ms` | 150 | 20 – 2000 |
+| `packet_loss_percent` | 2.0 | 0.1 – 100 |
+
+Konfigurierbar, weil „schlecht" von der Leitung abhängt und davon, wie bereitwillig man
+sich unterbrechen lässt. Werte außerhalb der Grenzen werden beim Laden **begrenzt, nicht
+abgelehnt** — ein unsinniger Wert soll das Plugin nicht anhalten, und ihn stillschweigend
+zu ignorieren würde ratlos machen.
 
 ### `duration_ms`
 
@@ -70,9 +103,12 @@ Funktion dafür.
 Solange die Liste leer ist, meldet `server_join` nichts. Das ist Absicht: Auf einem
 gut besuchten Server wäre jede Verbindung eine Displayübernahme.
 
-> **Offene Baustelle:** UIDs von Hand einzutragen ist zumutbar, aber unschön. Vorgesehen
-> ist ein Kontextmenü-Eintrag („Als Buddy merken") über `ts3plugin_initMenus`, mit dem
-> man jemanden im Client per Rechtsklick aufnimmt.
+Zwei Wege, jemanden aufzunehmen:
+
+- **Rechtsklick im Client** → *Plugins → TS3 SteelSeries OLED → Als Buddy merken*.
+  Bequem, funktioniert aber nur bei Leuten, die gerade sichtbar sind.
+- **UID im Dialog eintippen** und *Hinzufügen*. Das deckt alle anderen ab — und wer
+  offline ist, ist genau die Person, für die eine „kommt online"-Meldung gedacht ist.
 
 ### `display.mode` und `display.hold_ms`
 
@@ -132,37 +168,62 @@ einen neuen Build.
 
 ## Der Dialog
 
-Erreichbar über *Extras -> Optionen -> Addons -> ts3-steelseries -> Einstellungen*.
-Win32-Dialog aus `resources/plugin.rc`, kein Qt (siehe
-[ts3-plugin-notes.md](ts3-plugin-notes.md)).
+Zwei Wege dorthin:
+
+- *Extras → Optionen → Addons →* Plugin auswählen *→ Einstellungen*
+  (über `ts3plugin_offersConfigure` / `ts3plugin_configure`)
+- Menüband *Plugins → TS3 SteelSeries OLED → Einstellungen*
+  (globaler Menüeintrag über `ts3plugin_initMenus`)
+
+Reiner Win32-Dialog aus `resources/plugin.rc`, kein Qt (siehe
+[ADR 0001](decisions/0001-single-process-native-plugin.md)).
 
 ```
-+----------------------------------------------+
-|  TeamSpeak 3 -> Arctis OLED                  |
-|                                              |
-|  Anzeigen:                          [ Hoch ] |
-|  +----------------------------------+ [Runter]|
-|  | [x] Wer spricht                  |        |
-|  | [x] Mute / Deaf                  |        |
-|  | [x] Channel                      |        |
-|  | [ ] Verbindungsstatus            |        |
-|  +----------------------------------+        |
-|                                              |
-|  Maximale Zeilen: [ 3 ]                      |
-|                                              |
-|  Status: GameSense verbunden (Port 51248)    |
-|                                              |
-|              [ Übernehmen ]   [ Schließen ]  |
-+----------------------------------------------+
++---------------------------------------------------------------+
+| TS3 SteelSeries OLED – Einstellungen                          |
+|                                                               |
+| Anzeigen (Reihenfolge = Priorität):                           |
+| +------------------------------------------+  [ Nach oben  ]  |
+| | [x] Wer spricht                    5 s   |  [ Nach unten ]  |
+| | [x] Stumm gesprochen               5 s   |                  |
+| | [x] Angestupst                     8 s   |  Dauer (1-60 s): |
+| | [x] Ping / Paketverlust            5 s   |  [  8 ] [Setzen] |
+| | [ ] Channel                        4 s   |                  |
+| +------------------------------------------+                  |
+|                                                               |
+| Buddys (per Rechtsklick im Client):                           |
+| +------------------------------------------+  [ Entfernen  ]  |
+| | 8Vd6mLc0AbC...                           |                  |
+| +------------------------------------------+                  |
+|                                                               |
+| GameSense verbunden (127.0.0.1:58558)   [Speichern] [Schließen]|
++---------------------------------------------------------------+
 ```
 
 Die Liste wird **zur Laufzeit aus der Widget-Registry** gefüllt, nicht aus einer
 Konstanten im Dialogcode. Ein neues Widget erscheint dadurch automatisch — das ist die
 Hälfte des Erweiterbarkeitsversprechens aus [widgets.md](widgets.md).
 
-Die Statuszeile ist Absicht: "Nichts passiert auf dem Display" hat mehrere mögliche
+Die Statuszeile ist Absicht: „Nichts passiert auf dem Display" hat mehrere mögliche
 Ursachen (GG läuft nicht, Gerät nicht gefunden, Bind abgelehnt), und ohne diese Anzeige
 sucht man im Log statt im Dialog.
+
+### Warum der Dialog einen eigenen Thread bekommt
+
+`ts3plugin_configure` wird von TeamSpeak auf einem eigens dafür erzeugten Thread
+aufgerufen — dort wäre eine modale Schleife unbedenklich. Der Menüeintrag kommt aber
+über `ts3plugin_onMenuItemEvent` auf dem **UI-Thread des Clients** an, und eine modale
+Schleife würde TeamSpeak dort einfrieren.
+
+Statt zweier Pfade, die man verwechseln kann, öffnen beide Einstiege denselben eigenen
+Thread. `ConfigDialog::shutdown()` schließt das Fenster und wartet auf den Thread, bevor
+die DLL entladen wird — sonst liefe er in bereits freigegebenem Code weiter.
+
+### Buddys aufnehmen
+
+Rechtsklick auf einen Nutzer im Client → *Plugins → TS3 SteelSeries OLED →
+Als Buddy merken*. Gespeichert wird der `CLIENT_UNIQUE_IDENTIFIER`, nicht der Nickname —
+so übersteht der Eintrag eine Umbenennung. Entfernen geht im Dialog.
 
 ## Hot-Reload
 

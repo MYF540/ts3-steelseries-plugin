@@ -1,3 +1,4 @@
+#include "util/i18n.h"
 #include "widgets/registry.h"
 #include "widgets/widget.h"
 
@@ -8,7 +9,7 @@ namespace {
 class TalkersWidget final : public IWidget {
 public:
     std::string_view id() const override { return "talkers"; }
-    std::string_view displayName() const override { return "Wer spricht"; }
+    std::string_view displayName() const override { return tr(Str::WidgetTalkers); }
 
     std::optional<WidgetOutput> render(const ClientState& state,
                                        const RenderContext& ctx) const override {
