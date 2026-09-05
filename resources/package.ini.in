@@ -1,0 +1,8 @@
+; Generated from resources/package.ini.in by CMake - do not edit the generated copy.
+; The version lives only in CMakeLists.txt, so it cannot drift from the DLL's.
+Name = TS3 SteelSeries OLED
+Type = Plugin
+Author = MYF540
+Version = @PROJECT_VERSION@
+Platforms = win64
+Description = "Zeigt TeamSpeak-Status (Mute, wer spricht, Channel) auf dem OLED der SteelSeries Arctis Nova Pro Basisstation. / Shows TeamSpeak status on the SteelSeries Arctis Nova Pro base station OLED."

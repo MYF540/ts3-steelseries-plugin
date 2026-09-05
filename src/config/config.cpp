@@ -22,6 +22,23 @@ long long clampDuration(long long ms) {
 
 }  // namespace
 
+LogLevel logLevelFromString(const std::string& value) {
+    if (value == "debug") return LogLevel::Debug;
+    if (value == "warn")  return LogLevel::Warn;
+    if (value == "error") return LogLevel::Error;
+    return LogLevel::Info;
+}
+
+const char* logLevelToString(LogLevel level) {
+    switch (level) {
+        case LogLevel::Debug: return "debug";
+        case LogLevel::Warn:  return "warn";
+        case LogLevel::Error: return "error";
+        case LogLevel::Info:  break;
+    }
+    return "info";
+}
+
 bool Config::isBuddy(const std::string& uniqueId) const {
     return !uniqueId.empty()
         && std::find(buddies.begin(), buddies.end(), uniqueId) != buddies.end();
@@ -109,6 +126,9 @@ Config loadConfig(const std::filesystem::path& file) {
             std::chrono::milliseconds(it->value("hold_ms", config.holdAfterEmpty.count()));
     }
 
+    if (const auto it = parsed.find("logging"); it != parsed.end() && it->is_object())
+        config.logLevel = logLevelFromString(it->value("level", std::string("info")));
+
     if (const auto it = parsed.find("thresholds"); it != parsed.end() && it->is_object()) {
         config.pingWarnMs     = it->value("ping_ms", config.pingWarnMs);
         config.packetLossWarn = it->value("packet_loss_percent", config.packetLossWarn);
@@ -182,6 +202,7 @@ bool saveConfig(const std::filesystem::path& file, const Config& config) {
              {"ping_ms", config.pingWarnMs},
              {"packet_loss_percent", config.packetLossWarn},
          }},
+        {"logging", {{"level", logLevelToString(config.logLevel)}}},
         {"widgets", widgets},
         {"buddies", config.buddies},
     };

@@ -111,6 +111,7 @@ void openSettings() {
                 g_config = std::make_shared<const ts3ss::Config>(edited);
             }
             ts3ss::setLanguage(edited.language);
+            ts3ss::logSetLevel(edited.logLevel);
 
             // Hot reload: no TeamSpeak restart. The worker picks up the new pointer on
             // its next tick, and a frame already in flight finishes on the old config
@@ -190,8 +191,13 @@ PLUGINS_EXPORTDLL const char* ts3plugin_version() { return TS3SS_VERSION; }
 PLUGINS_EXPORTDLL int         ts3plugin_apiVersion() { return kPluginApiVersion; }
 PLUGINS_EXPORTDLL const char* ts3plugin_author() { return "MYF540"; }
 
+// Bilingual on purpose: TeamSpeak asks for this before ts3plugin_init runs, so the
+// configured language is not known yet and tr() would always answer in the default.
 PLUGINS_EXPORTDLL const char* ts3plugin_description() {
-    return "Zeigt TeamSpeak-Status auf dem OLED der SteelSeries Arctis Basisstation.";
+    return "Zeigt TeamSpeak-Status (Mute, wer spricht, Channel) auf dem OLED der "
+           "SteelSeries Arctis Nova Pro Basisstation.\n"
+           "Shows TeamSpeak status (mute, who is talking, channel) on the SteelSeries "
+           "Arctis Nova Pro base station OLED.";
 }
 
 PLUGINS_EXPORTDLL void ts3plugin_setFunctionPointers(const struct TS3Functions funcs) {
@@ -204,7 +210,6 @@ PLUGINS_EXPORTDLL int ts3plugin_init() {
     try {
         const auto dataDir = ts3ss::pluginDataDir();
         ts3ss::logInit(dataDir / "ts3_steelseries.log");
-        ts3ss::logSetLevel(ts3ss::LogLevel::Debug);
         installLogSink();
 
         TS3SS_INFO << "Initialising v" << TS3SS_VERSION << " (plugin API " << kPluginApiVersion
@@ -230,6 +235,7 @@ PLUGINS_EXPORTDLL int ts3plugin_init() {
             g_config = std::make_shared<const ts3ss::Config>(loaded);
         }
         ts3ss::setLanguage(currentConfig()->language);
+        ts3ss::logSetLevel(currentConfig()->logLevel);
 
         ts3ss::WorkerConfig workerConfig;
         workerConfig.holdAfterEmpty = currentConfig()->holdAfterEmpty;

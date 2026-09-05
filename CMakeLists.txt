@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(ts3-steelseries-plugin
-    VERSION 0.1.0
+    VERSION 1.0.0
     DESCRIPTION "TeamSpeak 3 status on the SteelSeries Arctis OLED"
     LANGUAGES CXX
 )
@@ -57,25 +57,22 @@ FetchContent_MakeAvailable(nlohmann_json)
 file(GLOB_RECURSE TS3SS_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
 if(NOT TS3SS_SOURCES)
-    message(STATUS "")
-    message(STATUS "  No sources under src/ yet - configuring the scaffold only.")
-    message(STATUS "  See docs/roadmap.md for the implementation phases.")
-    message(STATUS "")
-    return()
+    message(FATAL_ERROR "No sources found under src/ - is the working tree complete?")
 endif()
 
-# The resource script (version info + configuration dialog template) arrives in
-# phase 1/4; until then the target builds without it.
-set(TS3SS_RESOURCES "")
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/plugin.rc")
-    list(APPEND TS3SS_RESOURCES resources/plugin.rc)
-endif()
-
-add_library(ts3_steelseries SHARED ${TS3SS_SOURCES} ${TS3SS_RESOURCES})
+add_library(ts3_steelseries SHARED ${TS3SS_SOURCES} resources/plugin.rc)
 
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/version.h.in"
     "${CMAKE_BINARY_DIR}/generated/version.h"
+    @ONLY
+)
+
+# The addon package manifest. Generated for the same reason: one source of truth for
+# the version number.
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/package.ini.in"
+    "${CMAKE_BINARY_DIR}/generated/package.ini"
     @ONLY
 )
 

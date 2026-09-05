@@ -32,6 +32,10 @@ kennt** — man muss also nichts von Hand ergänzen, um zu sehen, was es gibt.
     "packet_loss_percent": 2.0
   },
 
+  "logging": {
+    "level": "info"
+  },
+
   "widgets": [
     { "id": "talkers",             "enabled": true, "duration_ms": 5000 },
     { "id": "talking_while_muted", "enabled": true, "duration_ms": 5000 },
@@ -75,6 +79,17 @@ Konfigurierbar, weil „schlecht" von der Leitung abhängt und davon, wie bereit
 sich unterbrechen lässt. Werte außerhalb der Grenzen werden beim Laden **begrenzt, nicht
 abgelehnt** — ein unsinniger Wert soll das Plugin nicht anhalten, und ihn stillschweigend
 zu ignorieren würde ratlos machen.
+
+### `logging.level`
+
+`"debug"`, `"info"` (Standard), `"warn"` oder `"error"`.
+
+`debug` ist zum Nachstellen eines Problems gedacht, nicht für den Dauerbetrieb: Jede
+Zeile wird sofort auf die Platte geschrieben, damit der letzte Eintrag vor einem Absturz
+noch dasteht. Das ist genau dann Gold wert und sonst überflüssige Schreiblast.
+
+Ziel ist `%APPDATA%\TS3Client\plugins\ts3_steelseries\ts3_steelseries.log`; zusätzlich
+geht alles ins TeamSpeak-Clientlog.
 
 ### `duration_ms`
 

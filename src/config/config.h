@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "util/i18n.h"
+#include "util/log.h"
 
 namespace ts3ss {
 
@@ -50,6 +51,11 @@ struct Config {
     // so a new version's widgets appear without anyone having to delete the file.
     std::vector<WidgetConfig> widgets;
 
+    // "debug" | "info" | "warn" | "error". Info by default: debug output is for
+    // reproducing a problem, and the log is flushed on every line so the last entry
+    // before a crash survives.
+    LogLevel logLevel = LogLevel::Info;
+
     // Own buddy list, matched against CLIENT_UNIQUE_IDENTIFIER.
     //
     // TeamSpeak's Friend/Foe manager is internal to the client and is not exposed to
@@ -58,6 +64,10 @@ struct Config {
 
     bool isBuddy(const std::string& uniqueId) const;
 };
+
+// Config round-trip for the log level: "debug" | "info" | "warn" | "error".
+LogLevel    logLevelFromString(const std::string& value);
+const char* logLevelToString(LogLevel level);
 
 // %APPDATA%\TS3Client\plugins\ts3_steelseries\config.json
 std::filesystem::path configFilePath();

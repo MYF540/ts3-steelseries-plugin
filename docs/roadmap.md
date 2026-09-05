@@ -1,6 +1,21 @@
-# Roadmap
+# Entstehungsgeschichte
 
-Jede Phase endet mit etwas, das man anschauen kann. Kein "erst alles bauen, dann testen".
+> **Alle Phasen sind abgeschlossen; Version 1.0.0 ist gebaut.** Dieses Dokument ist
+> keine Planung mehr, sondern das Protokoll — samt der Sackgassen, weil die den Entwurf
+> genauso geprägt haben wie die Erfolge:
+>
+> - Der erste Anlauf zeigte nichts an, weil `screened-128x64` gar nicht existiert und
+>   ein falscher Gerätetyp **lautlos** scheitert.
+> - Eine Fehldeutung von GGs Datenbank ließ den GameSense-Weg zwischenzeitlich als
+>   gescheitert erscheinen ([ADR 0005](decisions/0005-usb-hid-display-transport.md)).
+> - Ein Ablesefehler an einem Alphabet-Lineal führte kurz zur These, die Schriftgröße
+>   hinge am Layout.
+> - Bei stummem Mikrofon wurde der Schirm nie freigegeben — ein Modellfehler, nicht ein
+>   Umsetzungsfehler ([ADR 0007](decisions/0007-transient-vs-persistent.md)).
+>
+> Der Bitmap-Pfad (Phase 5) ist gemessen und verworfen.
+
+Jede Phase endete mit etwas, das man anschauen kann. Kein "erst alles bauen, dann testen".
 
 ---
 
