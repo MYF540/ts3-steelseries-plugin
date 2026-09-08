@@ -1,6 +1,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
+#include <functional>
+#include <string>
+
 #include "config/config.h"
 #include "core/client_state.h"
 #include "render/composer.h"
@@ -18,6 +21,19 @@ const struct PinLanguage {
 } kPinLanguage;
 
 Timestamp t0() { return Timestamp{} + std::chrono::hours(1); }
+
+// TalkerInfo hat mehr Felder als ein Aggregat-Literal lesbar macht; der Helfer haelt
+// die Tests auf das konzentriert, worum es jeweils geht.
+TalkerInfo talker(const std::string& name, Timestamp at, bool speaking = true,
+                  bool isSelf = false) {
+    TalkerInfo t;
+    t.clientId   = static_cast<unsigned>(std::hash<std::string>{}(name) & 0xFFFFu);
+    t.name       = name;
+    t.speaking   = speaking;
+    t.isSelf     = isSelf;
+    t.lastActive = at;
+    return t;
+}
 
 ClientState connectedState() {
     ClientState state;
@@ -77,7 +93,7 @@ TEST_CASE("deaf is reported instead of, not alongside, mic mute") {
 
 TEST_CASE("a talker claims the screen") {
     auto state = connectedState();
-    state.talkers.push_back({"Anna", false, t0()});
+    state.talkers.push_back(talker("Anna", t0()));
 
     const Frame frame = Composer{}.compose(state, t0());
     REQUIRE_FALSE(frame.empty());
@@ -87,7 +103,7 @@ TEST_CASE("a talker claims the screen") {
 
 TEST_CASE("persistent state rides along once the screen is claimed") {
     auto state = connectedState();
-    state.talkers.push_back({"Anna", false, t0()});
+    state.talkers.push_back(talker("Anna", t0()));
 
     const Frame frame = Composer{}.compose(state, t0());
     // Channel info contributes nothing on its own, but appears next to the talker.
@@ -102,7 +118,7 @@ TEST_CASE("the channel shows active of total") {
     auto state               = connectedState();
     state.channelClientCount = 7;
     state.channelActiveCount = 3;
-    state.talkers.push_back({"Anna", false, t0()});
+    state.talkers.push_back(talker("Anna", t0()));
 
     const Frame frame = Composer{}.compose(state, t0());
     const bool  found = std::any_of(frame.lines.begin(), frame.lines.end(),
@@ -113,7 +129,7 @@ TEST_CASE("the channel shows active of total") {
 TEST_CASE("talking into a muted mic outranks everything") {
     auto state              = connectedState();
     state.talkingWhileMuted = true;
-    state.talkers.push_back({"Anna", false, t0()});
+    state.talkers.push_back(talker("Anna", t0()));
     state.lastPoke = {"Bob", "hey", t0()};
 
     const Frame frame = Composer{}.compose(state, t0());
@@ -159,7 +175,7 @@ TEST_CASE("disconnected and quiet shows nothing") {
 TEST_CASE("frames never exceed the line budget") {
     auto state = connectedState();
     for (const char* name : {"Anna", "Bob", "Carl", "Dora", "Emil"})
-        state.talkers.push_back({name, false, t0()});
+        state.talkers.push_back(talker(name, t0()));
 
     const Frame frame = Composer{}.compose(state, t0());
     CHECK(frame.lines.size() <= 3);
@@ -175,7 +191,7 @@ TEST_CASE("fitText respects the width") {
 
 TEST_CASE("long names are shortened, not dropped") {
     auto state = connectedState();
-    state.talkers.push_back({"EinSehrLangerNickname", false, t0()});
+    state.talkers.push_back(talker("EinSehrLangerNickname", t0()));
 
     const Frame frame = Composer{}.compose(state, t0());
     REQUIRE_FALSE(frame.empty());
@@ -233,7 +249,7 @@ TEST_CASE("an unmeasured connection stays silent") {
 
 TEST_CASE("a disabled widget contributes nothing") {
     auto state = connectedState();
-    state.talkers.push_back({"Anna", false, t0()});
+    state.talkers.push_back(talker("Anna", t0()));
 
     Config config = *defaultConfig();
     for (auto& widget : config.widgets) {
@@ -305,4 +321,172 @@ TEST_CASE("all widgets are registered") {
                            "channel_join", "connection", "poke", "chat_message"}) {
         CHECK(WidgetRegistry::instance().find(id) != nullptr);
     }
+}
+
+// --- Reproduktion: "Wenn jemand redet, fehlt der Channel" -------------------
+
+TEST_CASE("reported: channel line while someone is talking") {
+    auto state               = connectedState();
+    state.channelClientCount = 7;
+    state.channelActiveCount = 3;
+
+    auto config = defaultConfig();  // alles aktiv, Registrierungsreihenfolge
+
+    SUBCASE("one talker") {
+        state.talkers.push_back(talker("Anna", t0()));
+        const Frame frame = Composer(config).compose(state, t0());
+        MESSAGE("lines: ", frame.lines.size());
+        for (const auto& l : frame.lines) MESSAGE("  '", l, "'");
+        CHECK(std::any_of(frame.lines.begin(), frame.lines.end(),
+                          [](const std::string& l) { return l.rfind("Lobby", 0) == 0; }));
+    }
+
+    SUBCASE("two talkers") {
+        state.talkers.push_back(talker("Anna", t0()));
+        state.talkers.push_back(talker("Bernd", t0()));
+        const Frame frame = Composer(config).compose(state, t0());
+        for (const auto& l : frame.lines) MESSAGE("  '", l, "'");
+        CHECK(std::any_of(frame.lines.begin(), frame.lines.end(),
+                          [](const std::string& l) { return l.rfind("Lobby", 0) == 0; }));
+    }
+
+    SUBCASE("three talkers") {
+        state.talkers.push_back(talker("Anna", t0()));
+        state.talkers.push_back(talker("Bernd", t0()));
+        state.talkers.push_back(talker("Carl", t0()));
+        const Frame frame = Composer(config).compose(state, t0());
+        for (const auto& l : frame.lines) MESSAGE("  '", l, "'");
+        CHECK(std::any_of(frame.lines.begin(), frame.lines.end(),
+                          [](const std::string& l) { return l.rfind("Lobby", 0) == 0; }));
+    }
+}
+
+// --- Nachleuchten, Sortierung, Selbst-Ausblenden ---------------------------
+
+TEST_CASE("a talker lingers briefly after stopping") {
+    auto state = connectedState();
+    state.talkers.push_back(talker("Anna", t0(), /*speaking=*/false));
+
+    Config config = *defaultConfig();
+    for (auto& w : config.widgets)
+        if (w.id == "talkers") w.duration = std::chrono::seconds(3);
+    auto shared = std::make_shared<const Config>(config);
+
+    // Noch im Fenster: der Name steht weiter da. Genau darum geht es - ohne das
+    // verschwaende die Anzeige bei jedem kurzen "ja" sofort wieder.
+    const Frame soon = Composer(shared).compose(state, t0() + std::chrono::seconds(1));
+    CHECK(std::any_of(soon.lines.begin(), soon.lines.end(),
+                      [](const std::string& l) { return l == "Anna"; }));
+
+    // Nach dem Fenster ist er weg und der Schirm frei.
+    CHECK(Composer(shared).compose(state, t0() + std::chrono::seconds(10)).empty());
+}
+
+// Das Nachleuchten ist begrenzt und einstellbar (1-60 s), kann den Schirm also nie
+// dauerhaft belegen - der Punkt, um den es in ADR 0007 geht.
+TEST_CASE("the linger window ends by itself") {
+    auto state = connectedState();
+    state.talkers.push_back(talker("Anna", t0(), /*speaking=*/false));
+
+    Config config = *defaultConfig();
+    for (auto& w : config.widgets)
+        if (w.id == "talkers") w.duration = Config::kMaxDuration;
+    auto shared = std::make_shared<const Config>(config);
+
+    CHECK_FALSE(shared->widgets.empty());
+    CHECK(Composer(shared).compose(state, t0() + std::chrono::seconds(30)).empty() == false);
+    CHECK(Composer(shared).compose(state, t0() + std::chrono::minutes(2)).empty());
+}
+
+TEST_CASE("the most recent talker is on top") {
+    auto state = connectedState();
+    state.talkers.push_back(talker("Alt",  t0() - std::chrono::seconds(2)));
+    state.talkers.push_back(talker("Neu",  t0()));
+
+    const Frame frame = Composer(defaultConfig()).compose(state, t0());
+    REQUIRE(frame.lines.size() >= 2);
+    CHECK(frame.lines[0] == "Neu");
+    CHECK(frame.lines[1] == "Alt");
+}
+
+TEST_CASE("someone still speaking outranks someone who stopped") {
+    auto state = connectedState();
+    state.talkers.push_back(talker("Gestoppt", t0(), /*speaking=*/false));
+    state.talkers.push_back(talker("Spricht",  t0() - std::chrono::seconds(5), /*speaking=*/true));
+
+    const Frame frame = Composer(defaultConfig()).compose(state, t0());
+    REQUIRE_FALSE(frame.lines.empty());
+    CHECK(frame.lines[0] == "Spricht");
+}
+
+TEST_CASE("hiding yourself removes you from the talker list") {
+    auto state = connectedState();
+    state.talkers.push_back(talker("Ich",  t0(), true, /*isSelf=*/true));
+    state.talkers.push_back(talker("Anna", t0()));
+
+    Config config = *defaultConfig();
+
+    config.hideSelfInTalkers = false;
+    const Frame shown = Composer(std::make_shared<const Config>(config)).compose(state, t0());
+    CHECK(std::any_of(shown.lines.begin(), shown.lines.end(),
+                      [](const std::string& l) { return l == "Ich"; }));
+
+    config.hideSelfInTalkers = true;
+    const Frame hidden = Composer(std::make_shared<const Config>(config)).compose(state, t0());
+    CHECK_FALSE(std::any_of(hidden.lines.begin(), hidden.lines.end(),
+                            [](const std::string& l) { return l == "Ich"; }));
+    CHECK(std::any_of(hidden.lines.begin(), hidden.lines.end(),
+                      [](const std::string& l) { return l == "Anna"; }));
+}
+
+// Das Warnbild beim Sprechen ins stumme Mikro ist eine eigene Anzeige und darf von
+// "mich ausblenden" nicht betroffen sein - es ist die nuetzlichste Meldung ueberhaupt.
+TEST_CASE("hiding yourself leaves the muted-mic warning alone") {
+    auto state              = connectedState();
+    state.talkingWhileMuted = true;
+    state.talkers.push_back(talker("Ich", t0(), true, /*isSelf=*/true));
+
+    Config config            = *defaultConfig();
+    config.hideSelfInTalkers = true;
+
+    const Frame frame = Composer(std::make_shared<const Config>(config)).compose(state, t0());
+    REQUIRE_FALSE(frame.empty());
+    CHECK(frame.lines.front() == tr(Str::MutedAlert));
+}
+
+TEST_CASE("the talker list respects its line budget") {
+    auto state = connectedState();
+    for (const char* n : {"Anna", "Bernd", "Carl"})
+        state.talkers.push_back(talker(n, t0()));
+
+    Config config = *defaultConfig();
+
+    config.maxTalkerLines = 1;
+    const Frame one = Composer(std::make_shared<const Config>(config)).compose(state, t0());
+    CHECK(one.lines.size() >= 2);          // ein Sprecher plus Channel
+    CHECK(one.lines[1].rfind("Lobby", 0) == 0);
+
+    config.maxTalkerLines = 3;
+    const Frame three = Composer(std::make_shared<const Config>(config)).compose(state, t0());
+    CHECK(three.lines.size() == 3);        // Sprecher fuellen alles, Channel faellt raus
+}
+
+TEST_CASE("a buddy going offline is announced") {
+    auto state            = connectedState();
+    state.lastServerLeave = {"Anna", "", t0(), /*buddy=*/true};
+
+    Composer composer(defaultConfig());
+    const Frame frame = composer.compose(state, t0());
+    REQUIRE_FALSE(frame.empty());
+    CHECK(frame.lines.front() == "Anna");
+    CHECK(frame.icon == Icon::Disconnect);
+
+    CHECK(composer.compose(state, t0() + std::chrono::seconds(60)).empty());
+}
+
+TEST_CASE("a stranger going offline is not announced") {
+    auto state            = connectedState();
+    state.lastServerLeave = {"Fremder", "", t0(), /*buddy=*/false};
+
+    CHECK(Composer(defaultConfig()).compose(state, t0()).empty());
 }

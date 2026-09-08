@@ -54,6 +54,17 @@ struct RenderContext {
     int    pingWarnMs     = 150;
     double packetLossWarn = 2.0;
 
+    // How many of the maxLines the talker list may take.
+    //
+    // Capped below maxLines by default, because three simultaneous speakers otherwise
+    // fill the display and push the channel line off it - precisely when knowing where
+    // you are is most useful.
+    int maxTalkerLines = 2;
+
+    // Leave the user themselves out of the talker list. Deliberately does not touch the
+    // separate "talking while muted" warning, which is about the user by definition.
+    bool hideSelfInTalkers = false;
+
     bool isBuddy(const std::string& uniqueId) const;
 };
 

@@ -92,9 +92,12 @@ Frame Composer::compose(const ClientState& state, Timestamp now) const {
     ctx.now      = now;
     ctx.buddies  = config_ ? &config_->buddies : nullptr;
     if (config_) {
-        ctx.pingWarnMs     = config_->pingWarnMs;
-        ctx.packetLossWarn = config_->packetLossWarn;
+        ctx.pingWarnMs        = config_->pingWarnMs;
+        ctx.packetLossWarn    = config_->packetLossWarn;
+        ctx.maxTalkerLines    = config_->maxTalkerLines;
+        ctx.hideSelfInTalkers = config_->hideSelfInTalkers;
     }
+    ctx.maxTalkerLines = std::min(ctx.maxTalkerLines, ctx.maxLines);
 
     const int withIcon    = config_ ? config_->charsWithIcon : 12;
     const int withoutIcon = config_ ? config_->charsWithoutIcon : 16;

@@ -59,6 +59,7 @@ private:
     void refreshSelfFlags(ClientState& state) const;
     void refreshChannel(ClientState& state) const;
     void refreshTalkers(ClientState& state) const;
+    void pruneTalkers(ClientState& state) const;
 
     std::string nicknameOf(anyID clientId) const;
     bool        isBuddy(anyID clientId) const;

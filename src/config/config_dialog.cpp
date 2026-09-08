@@ -224,6 +224,25 @@ void harvestThresholds(HWND dialog, Config& config) {
     }
 }
 
+void showTalkerOptions(HWND dialog, const Config& config) {
+    SetDlgItemInt(dialog, IDC_TALKER_LINES, static_cast<UINT>(config.maxTalkerLines), FALSE);
+    CheckDlgButton(dialog, IDC_HIDE_SELF, config.hideSelfInTalkers ? BST_CHECKED : BST_UNCHECKED);
+}
+
+void harvestTalkerOptions(HWND dialog, Config& config) {
+    BOOL       translated = FALSE;
+    const UINT lines      = GetDlgItemInt(dialog, IDC_TALKER_LINES, &translated, FALSE);
+    if (translated) {
+        // Never more lines than the display has: a talker list longer than the screen
+        // would just silently drop the rest.
+        config.maxTalkerLines = std::min(std::max(static_cast<int>(lines),
+                                                  Config::kMinTalkerLines),
+                                         std::min(Config::kMaxTalkerLines, config.maxLines));
+    }
+
+    config.hideSelfInTalkers = IsDlgButtonChecked(dialog, IDC_HIDE_SELF) == BST_CHECKED;
+}
+
 void fillLanguageBox(HWND dialog, const Config& config) {
     HWND box = GetDlgItem(dialog, IDC_LANGUAGE);
     SendMessageW(box, CB_RESETCONTENT, 0, 0);
@@ -264,6 +283,8 @@ void initialiseDialog(HWND dialog, DialogState* state) {
     SetDlgItemTextW(dialog, IDC_LABEL_THRESHOLDS, trW(Str::LabelThresholds).c_str());
     SetDlgItemTextW(dialog, IDC_LABEL_PING, trW(Str::LabelPing).c_str());
     SetDlgItemTextW(dialog, IDC_LABEL_LOSS, trW(Str::LabelPacketLoss).c_str());
+    SetDlgItemTextW(dialog, IDC_LABEL_TALKERS, trW(Str::LabelTalkerLines).c_str());
+    SetDlgItemTextW(dialog, IDC_HIDE_SELF, trW(Str::CheckHideSelf).c_str());
     SetDlgItemTextW(dialog, IDC_LABEL_BUDDIES, trW(Str::LabelBuddies).c_str());
     SetDlgItemTextW(dialog, IDC_BUDDY_ADD, trW(Str::ButtonAdd).c_str());
     SetDlgItemTextW(dialog, IDC_BUDDY_REMOVE, trW(Str::ButtonRemove).c_str());
@@ -289,6 +310,7 @@ void initialiseDialog(HWND dialog, DialogState* state) {
     fillBuddyList(GetDlgItem(dialog, IDC_BUDDIES), state->config);
     fillLanguageBox(dialog, state->config);
     showThresholds(dialog, state->config);
+    showTalkerOptions(dialog, state->config);
 
     if (!state->config.widgets.empty()) {
         ListView_SetItemState(list, 0, LVIS_SELECTED | LVIS_FOCUSED,
@@ -341,6 +363,7 @@ INT_PTR CALLBACK dialogProc(HWND dialog, UINT message, WPARAM wParam, LPARAM lPa
                     // Save would be the kind of small betrayal nobody reports.
                     harvestCheckboxes(GetDlgItem(dialog, IDC_WIDGETS), state->config);
                     harvestThresholds(dialog, state->config);
+                    harvestTalkerOptions(dialog, state->config);
                     harvestLanguage(dialog, state->config);
                     addTypedBuddy(dialog, state->config);
 

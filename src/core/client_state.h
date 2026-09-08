@@ -8,17 +8,33 @@ namespace ts3ss {
 
 using Timestamp = std::chrono::steady_clock::time_point;
 
-// Someone audible in our own channel right now.
+// Someone who is talking in our own channel, or stopped recently enough to still be
+// worth showing.
 //
 // Names are resolved on the TeamSpeak thread and stored as plain strings. The worker
 // therefore never has to look an id back up - see the invariant in docs/architecture.md.
 struct TalkerInfo {
+    // Opaque numeric handle from TeamSpeak, only ever compared for equality. Entries are
+    // matched on this rather than on the name, because two people can share a nickname
+    // and one person can change theirs mid-sentence.
+    unsigned clientId = 0;
+
     std::string name;
     bool        whispering = false;
-    Timestamp   since;
+    bool        isSelf     = false;
+
+    // false = stopped talking but still inside the linger window. Entries are not
+    // deleted the moment someone stops; a name that vanishes on every short "yeah"
+    // makes the display twitch.
+    bool speaking = false;
+
+    // Time of the last transition (started or stopped). Drives both the linger window
+    // and the ordering: most recent on top.
+    Timestamp lastActive;
 
     friend bool operator==(const TalkerInfo& a, const TalkerInfo& b) {
-        return a.name == b.name && a.whispering == b.whispering;
+        return a.clientId == b.clientId && a.name == b.name && a.whispering == b.whispering
+            && a.isSelf == b.isSelf && a.speaking == b.speaking && a.lastActive == b.lastActive;
     }
 };
 
@@ -88,8 +104,9 @@ struct ClientState {
     // Recent events
     Notice lastPoke;
     Notice lastMessage;
-    Notice lastJoin;        // entered our channel
-    Notice lastServerJoin;  // connected to the server at all
+    Notice lastJoin;         // entered our channel
+    Notice lastServerJoin;   // connected to the server at all
+    Notice lastServerLeave;  // left the server
 
     // When the corresponding persistent values last changed. Widgets use these to show
     // a state briefly after it flips and then fall silent, instead of holding the
@@ -110,8 +127,8 @@ struct ClientState {
             && a.away == b.away && a.talkingWhileMuted == b.talkingWhileMuted
             && a.talkers == b.talkers && a.lastPoke == b.lastPoke
             && a.lastMessage == b.lastMessage && a.lastJoin == b.lastJoin
-            && a.lastServerJoin == b.lastServerJoin && a.pingMs == b.pingMs
-            && a.packetLoss == b.packetLoss;
+            && a.lastServerJoin == b.lastServerJoin && a.lastServerLeave == b.lastServerLeave
+            && a.pingMs == b.pingMs && a.packetLoss == b.packetLoss;
     }
     friend bool operator!=(const ClientState& a, const ClientState& b) { return !(a == b); }
 };

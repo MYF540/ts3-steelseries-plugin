@@ -192,8 +192,11 @@ void StateSync::refreshTalkers(ClientState& state) const {
             continue;
 
         TalkerInfo talker;
-        talker.name  = nicknameOf(id);
-        talker.since = std::chrono::steady_clock::now();
+        talker.clientId   = id;
+        talker.name       = nicknameOf(id);
+        talker.isSelf     = (id == ownClientId_);
+        talker.speaking   = true;
+        talker.lastActive = std::chrono::steady_clock::now();
         state.talkers.push_back(std::move(talker));
     }
 }
@@ -251,29 +254,81 @@ void StateSync::onTalkStatusChanged(uint64 schid, int status, bool receivedWhisp
             return;
     }
 
-    if (status == STATUS_TALKING) {
-        const std::string name = nicknameOf(clientId);
-        commit([&name, receivedWhisper](ClientState& state) {
-            const auto it = std::find_if(state.talkers.begin(), state.talkers.end(),
-                                         [&](const TalkerInfo& t) { return t.name == name; });
-            if (it != state.talkers.end())
-                return;
+    const std::string name    = nicknameOf(clientId);
+    const bool        talking = (status == STATUS_TALKING);
+    const bool        self    = (clientId == ownClientId_);
 
-            TalkerInfo talker;
-            talker.name       = name;
-            talker.whispering = receivedWhisper;
-            talker.since      = std::chrono::steady_clock::now();
-            state.talkers.push_back(std::move(talker));
-        });
-        return;
-    }
+    commit([&, talking, self, receivedWhisper](ClientState& state) {
+        pruneTalkers(state);
 
-    const std::string name = nicknameOf(clientId);
-    commit([&name](ClientState& state) {
-        state.talkers.erase(std::remove_if(state.talkers.begin(), state.talkers.end(),
-                                           [&](const TalkerInfo& t) { return t.name == name; }),
-                            state.talkers.end());
+        // Matched on the client id, not the name: two people can share a nickname, and
+        // one person can change theirs between starting and stopping.
+        const auto it = std::find_if(state.talkers.begin(), state.talkers.end(),
+                                     [clientId](const TalkerInfo& t) {
+                                         return t.clientId == clientId;
+                                     });
+
+        const auto now = std::chrono::steady_clock::now();
+
+        if (it != state.talkers.end()) {
+            // Kept even when they stop - the widget lets the entry linger for a moment
+            // so a short "yeah" does not make the list twitch.
+            it->name       = name;
+            it->whispering = receivedWhisper;
+            it->speaking   = talking;
+            it->lastActive = now;
+            return;
+        }
+
+        if (!talking)
+            return;  // stop for someone we never saw start
+
+        TalkerInfo talker;
+        talker.clientId   = clientId;
+        talker.name       = name;
+        talker.whispering = receivedWhisper;
+        talker.isSelf     = self;
+        talker.speaking   = true;
+        talker.lastActive = now;
+        state.talkers.push_back(std::move(talker));
     });
+}
+
+void StateSync::pruneTalkers(ClientState& state) const {
+    const auto now    = std::chrono::steady_clock::now();
+    const auto maxAge = Config::kMaxDuration;
+
+    // Ghost guard.
+    //
+    // A "speaking" entry never expires on its own, so one missed stop event pins a name
+    // to the display for good. That is not hypothetical: someone disconnected
+    // mid-sentence and stayed listed as talking. Matching removals on the client id
+    // instead of the resolved nickname fixes the known path - once a client is gone,
+    // the nickname lookup fails and returns "?", so a name-based erase finds nothing -
+    // but any future event we fail to see would bring the ghost back.
+    //
+    // So membership decides, not event bookkeeping: whoever is no longer in the channel
+    // is dropped, whatever the last event claimed.
+    std::vector<anyID> present;
+    if (ownChannel_ != 0)
+        present = ts3_.channelClients(activeSchid_, ownChannel_);
+
+    // An empty list means the query failed - we are always in our own channel, so it can
+    // never legitimately be empty. Dropping everyone on a hiccup would be worse than
+    // keeping a stale name for a moment longer.
+    const bool membershipKnown = !present.empty();
+
+    state.talkers.erase(
+        std::remove_if(state.talkers.begin(), state.talkers.end(),
+                       [&](const TalkerInfo& t) {
+                           if (membershipKnown
+                               && std::find(present.begin(), present.end(),
+                                            static_cast<anyID>(t.clientId)) == present.end()) {
+                               return true;
+                           }
+                           return !t.speaking && (now - t.lastActive) > maxAge;
+                       }),
+        state.talkers.end());
 }
 
 void StateSync::onSelfVariableUpdated(uint64 schid, int flag) {
@@ -317,6 +372,28 @@ void StateSync::onClientMoved(uint64 schid, anyID clientId, uint64 oldChannelId,
         // Falls through: they may have appeared directly in our channel.
     }
 
+    // newChannelId == 0 means they left the server entirely - by quitting, being kicked,
+    // or timing out. onClientMoveTimeoutEvent routes here too, so a dropped connection
+    // counts as leaving rather than silently lingering in the channel.
+    if (newChannelId == 0 && clientId != ownClientId_) {
+        const std::string name  = nicknameOf(clientId);
+        const bool        buddy = isBuddy(clientId);
+
+        commit([&name, buddy, clientId](ClientState& state) {
+            state.lastServerLeave.who   = name;
+            state.lastServerLeave.buddy = buddy;
+            state.lastServerLeave.at    = std::chrono::steady_clock::now();
+
+            // Gone for good - no stop event is coming for them.
+            state.talkers.erase(std::remove_if(state.talkers.begin(), state.talkers.end(),
+                                               [clientId](const TalkerInfo& t) {
+                                                   return t.clientId == clientId;
+                                               }),
+                                state.talkers.end());
+        });
+        return;
+    }
+
     // We moved: everything about the channel changes at once, so re-read rather than
     // patch. This also covers being dragged by someone else, which arrives through a
     // different callback but ends up here.
@@ -336,7 +413,7 @@ void StateSync::onClientMoved(uint64 schid, anyID clientId, uint64 oldChannelId,
     const bool        joined = (newChannelId == ownChannel_);
     const std::string name   = nicknameOf(clientId);
 
-    commit([this, joined, &name](ClientState& state) {
+    commit([this, joined, clientId, &name](ClientState& state) {
         refreshChannel(state);
 
         if (joined) {
@@ -347,7 +424,9 @@ void StateSync::onClientMoved(uint64 schid, anyID clientId, uint64 oldChannelId,
 
         // They left: drop them from the talker list, which gets no stop event.
         state.talkers.erase(std::remove_if(state.talkers.begin(), state.talkers.end(),
-                                           [&](const TalkerInfo& t) { return t.name == name; }),
+                                           [clientId](const TalkerInfo& t) {
+                                               return t.clientId == clientId;
+                                           }),
                             state.talkers.end());
     });
 }
@@ -370,7 +449,14 @@ void StateSync::onClientUpdated(uint64 schid, anyID clientId) {
 
     // refreshChannel recounts; commit() drops the update if nothing actually changed,
     // so the frequent no-op case costs a comparison rather than a screen update.
-    commit([this](ClientState& state) { refreshChannel(state); });
+    //
+    // Pruning here too gives the ghost guard a second chance to fire: client updates
+    // arrive for all sorts of reasons, so a stale talker gets swept out even if no
+    // further talk event ever comes.
+    commit([this](ClientState& state) {
+        refreshChannel(state);
+        pruneTalkers(state);
+    });
 }
 
 void StateSync::onPoked(uint64 schid, const char* fromName, const char* message) {

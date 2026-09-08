@@ -67,6 +67,10 @@ struct RenderContext {
     // Warnschwellen für connection_quality, ebenfalls aus der Config.
     int    pingWarnMs;
     double packetLossWarn;
+
+    // Zeilenbudget der Sprecherliste, und ob der Nutzer sich selbst darin sehen will.
+    int  maxTalkerLines;
+    bool hideSelfInTalkers;
 };
 
 class IWidget {
@@ -265,9 +269,10 @@ Für jedes Widget mindestens: der aktive Fall, der `nullopt`-Fall, und der Fall
 | `connection_quality` | Ping hoch / Paketverlust | — | 45 | solange das Problem besteht |
 | `connection` | Verbinde…, Getrennt | `Connect`/`Disconnect` | 40 | Ereignis (5 s) |
 | `chat_message` | Absender + Anfang der Nachricht | — | 30 | Ereignis (6 s) |
-| `server_join` | „Name / ist online" — nur Buddys | `Connect` | 25 | Ereignis (6 s) |
+| `server_join` | Name + kommt online — nur Buddys | `Connect` | 25 | Ereignis (6 s) |
+| `server_leave` | Name + geht offline — nur Buddys | `Disconnect` | 25 | Ereignis (6 s) |
 | `channel_join` | „Name / ist da" | `Connect` | 20 | Ereignis (5 s) |
-| `talkers` | bis zu 3 Nicknames, einer je Zeile | `Talking` | 10 | solange jemand spricht |
+| `talkers` | Nicknames, neueste oben, einer je Zeile | `Talking` | 10 | solange jemand spricht, plus Nachleuchten |
 | `mute_status` | Mikro aus / Ton aus / Abwesend | `Muted` | 0 | Ereignis (4 s) |
 | `channel_info` | Channelname + aktiv/gesamt, z. B. `Lobby 3/7` | — | 0 | Ereignis (4 s) |
 
@@ -281,6 +286,12 @@ nichts, was man wissen musste.
 
 `server_join` bleibt still, solange die Buddy-Liste leer ist — sonst wäre auf einem gut
 besuchten Server jede Verbindung eine Displayübernahme.
+
+`talkers` sortiert nach Aktualität: wer noch spricht, steht oben, darunter absteigend
+nach Alter. Ein Name bleibt nach dem Verstummen für die eingestellte Dauer stehen
+(Standard 3 s) — ohne dieses Nachleuchten verschwindet er bei jedem kurzen „ja" sofort
+wieder. Die Liste belegt höchstens `display.max_talker_lines` Zeilen (Standard 2),
+damit die Channel-Zeile bei mehreren Sprechern nicht verdrängt wird.
 
 `channel_info` zeigt `aktiv/gesamt` statt nur der Gesamtzahl. Als inaktiv zählt, wer
 stummgeschaltet, auf Ton-aus oder **abwesend** ist — alle drei sind da, aber nicht

@@ -24,7 +24,9 @@ kennt** — man muss also nichts von Hand ergänzen, um zu sehen, was es gibt.
     "max_lines": 3,
     "chars_with_icon": 12,
     "chars_without_icon": 16,
-    "hold_ms": 6000
+    "hold_ms": 6000,
+    "max_talker_lines": 2,
+    "hide_self_in_talkers": false
   },
 
   "thresholds": {
@@ -102,8 +104,12 @@ Wirklichkeit eine Dauerbelegung des Displays — genau das, was
 [ADR 0007](decisions/0007-transient-vs-persistent.md) verhindern sollen. Die Untergrenze
 sorgt dafür, dass eine Meldung überhaupt lesbar ist.
 
-Bei `talkers` und `talking_while_muted` ist der Wert wirkungslos: Diese Widgets zeigen
-an, solange tatsächlich jemand spricht, nicht für eine feste Zeit.
+Bei `talking_while_muted` ist der Wert wirkungslos: Diese Anzeige gilt, solange die
+Bedingung zutrifft, nicht für eine feste Zeit.
+
+Bei **`talkers`** ist der Wert das **Nachleuchten**: wie lange ein Name nach dem
+Verstummen stehen bleibt. Ohne das verschwindet ein Name bei jedem kurzen „ja" sofort
+wieder, und in einem lebhaften Channel kommt die Anzeige nie zur Ruhe. Standard 3 s.
 
 ### `buddies`
 
@@ -125,25 +131,40 @@ Zwei Wege, jemanden aufzunehmen:
 - **UID im Dialog eintippen** und *Hinzufügen*. Das deckt alle anderen ab — und wer
   offline ist, ist genau die Person, für die eine „kommt online"-Meldung gedacht ist.
 
-### `display.mode` und `display.hold_ms`
+### `display.hold_ms`
 
-`"events"` (Default) belegt den Schirm nur, solange mindestens ein Widget etwas
-liefert, und gibt ihn danach per `remove_game` frei. `"always"` hält ihn dauerhaft,
-solange TeamSpeak läuft.
+Nachlaufzeit: Wie lange der Schirm nach dem letzten Inhalt noch belegt bleibt, bevor er
+an SteelSeries GG zurückgeht. Zu kurz wirkt hektisch, zu lang nähert sich einer
+Dauerbelegung an. 6 s ist ein Startwert, kein Messergebnis.
 
-Der Default ist gemessen begründet, nicht geschmacklich: Bei paralleler GameSense-App
-(NowPlaying, CS2) **wechselt** GG zwischen den Anzeigen und flackert dabei sichtbar. Eine
-Dauerbelegung zerhackt damit die Musikanzeige des Nutzers. Ausführlich in
+Dass überhaupt freigegeben wird, ist gemessen begründet: Bei paralleler GameSense-App
+(NowPlaying, CS2) **wechselt** GG zwischen den Anzeigen und flackert sichtbar. Eine
+Dauerbelegung würde die Musikanzeige zerhacken — ausführlich in
 [ADR 0006](decisions/0006-event-driven-screen-ownership.md).
-
-`hold_ms` ist die Nachlaufzeit: Wie lange die Anzeige stehen bleibt, nachdem das letzte
-Widget verstummt ist. Zu kurz wirkt hektisch, zu lang nähert sich der Dauerbelegung an.
-6 s ist ein Startwert, kein Messergebnis.
 
 ### `display.max_lines`
 
 Standard 3 — das ist die auf der Arctis-Nova-Pro-Basisstation gemessene Zeilenzahl.
 Gebunden wurden fünf Zeilen, dargestellt drei; horizontal wurde nichts abgeschnitten.
+
+### `display.max_talker_lines`
+
+Wie viele der Zeilen die Sprecherliste belegen darf. **Standard 2.**
+
+Der Wert existiert wegen einer gemeldeten Panne: Bei drei gleichzeitigen Sprechern füllte
+die Liste das ganze Display und verdrängte die Channel-Zeile — ausgerechnet dann, wenn es
+am nützlichsten ist zu wissen, wo man gerade ist. Mit Nachleuchten wäre das der Normalfall
+geworden statt der Ausnahme.
+
+Auf 1–3 begrenzt, zusätzlich nie größer als `max_lines`.
+
+### `display.hide_self_in_talkers`
+
+Blendet dich selbst aus der Sprecherliste aus. Standard `false`.
+
+**Betrifft ausdrücklich nicht** die Warnung beim Sprechen ins stumme Mikrofon. Die ist
+eine eigene Anzeige, handelt per Definition von dir, und sie zu unterdrücken würde die
+nützlichste Meldung entfernen, die dieses Display überhaupt hat.
 
 ### `display.widgets`
 
@@ -160,26 +181,22 @@ Regeln beim Laden, jede davon ein potenzieller Absturz, wenn man sie vergisst:
   löschen muss.
 - **Doppelte `id`**: erstes Vorkommen gewinnt, Rest verwerfen.
 
-### `gamesense.min_update_interval_ms`
+## Nicht konfigurierbar
 
-Untergrenze zwischen zwei `/game_event`-Requests. Events, die währenddessen eintreffen,
-werden zusammengefasst und beim nächsten Tick als *ein* Frame gesendet.
+Zwei GameSense-Werte stehen fest in `src/core/worker.h` bzw. `src/gamesense/session.h`,
+weil an ihnen niemand ohne Not drehen sollte:
 
-Das ist keine Optimierung, sondern eine Schutzmaßnahme gegen
-[Issue #66](https://github.com/SteelSeries/gamesense-sdk/issues/66) — siehe
-[gamesense-notes.md](gamesense-notes.md). Nicht ohne Not verkleinern.
+- **`minUpdateInterval` (120 ms)** — Untergrenze zwischen zwei `/game_event`-Requests.
+  Ereignisse dazwischen werden zusammengefasst und als *ein* Frame gesendet. Das ist
+  keine Optimierung, sondern eine Schutzmaßnahme gegen
+  [Issue #66](https://github.com/SteelSeries/gamesense-sdk/issues/66).
+- **`deviceType` (`"screened"`)** — das generische, mit dem auch GGs eigene Spielpakete
+  binden. Auflösungsspezifische Werte gibt es nur für ältere Geräte;
+  `"screened-128x64"` existiert nicht, und ein falscher Typ scheitert **lautlos** (siehe
+  [gamesense-notes.md](gamesense-notes.md)).
 
-### `gamesense.device_type`
-
-Default ist das generische `"screened"`, das auf jedes Gerät mit Schirm passt und mit
-dem auch GGs eigene Spielpakete binden. Auflösungsspezifische Werte wie
-`"screened-128x48"` existieren nur für ältere Geräte — `"screened-128x64"` gibt es
-nicht, und ein nicht passender Typ scheitert **lautlos** (siehe
-[gamesense-notes.md](gamesense-notes.md)).
-
-Der Wert bleibt trotzdem konfigurierbar: Wenn eine künftige GG-Version einen
-spezifischeren Typ einführt oder ein anderes Gerät angebunden werden soll, spart das
-einen neuen Build.
+Sollte eine künftige GG-Version das nötig machen, sind beides Einzeiler — bis dahin sind
+sie ein Angebot, sich das Display kaputtzukonfigurieren.
 
 ## Der Dialog
 

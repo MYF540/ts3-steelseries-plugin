@@ -124,7 +124,12 @@ Config loadConfig(const std::filesystem::path& file) {
         config.charsWithoutIcon = it->value("chars_without_icon", config.charsWithoutIcon);
         config.holdAfterEmpty =
             std::chrono::milliseconds(it->value("hold_ms", config.holdAfterEmpty.count()));
+        config.maxTalkerLines    = it->value("max_talker_lines", config.maxTalkerLines);
+        config.hideSelfInTalkers = it->value("hide_self_in_talkers", config.hideSelfInTalkers);
     }
+
+    config.maxTalkerLines = std::min(std::max(config.maxTalkerLines, Config::kMinTalkerLines),
+                                     std::min(Config::kMaxTalkerLines, config.maxLines));
 
     if (const auto it = parsed.find("logging"); it != parsed.end() && it->is_object())
         config.logLevel = logLevelFromString(it->value("level", std::string("info")));
@@ -196,6 +201,8 @@ bool saveConfig(const std::filesystem::path& file, const Config& config) {
              {"chars_with_icon", config.charsWithIcon},
              {"chars_without_icon", config.charsWithoutIcon},
              {"hold_ms", config.holdAfterEmpty.count()},
+             {"max_talker_lines", config.maxTalkerLines},
+             {"hide_self_in_talkers", config.hideSelfInTalkers},
          }},
         {"thresholds",
          {

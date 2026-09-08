@@ -17,6 +17,8 @@
 #define IDC_PING             1014
 #define IDC_PACKET_LOSS      1015
 #define IDC_LANGUAGE         1016
+#define IDC_TALKER_LINES     1021
+#define IDC_HIDE_SELF        1022
 
 #define IDC_LABEL_WIDGETS    1010
 #define IDC_LABEL_DURATION   1011
@@ -25,3 +27,4 @@
 #define IDC_LABEL_PING       1018
 #define IDC_LABEL_LOSS       1019
 #define IDC_LABEL_LANGUAGE   1020
+#define IDC_LABEL_TALKERS    1023
