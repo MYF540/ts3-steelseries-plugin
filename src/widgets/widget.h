@@ -57,13 +57,16 @@ struct RenderContext {
     // How many of the maxLines the talker list may take.
     //
     // Capped below maxLines by default, because three simultaneous speakers otherwise
-    // fill the display and push the channel line off it - precisely when knowing where
-    // you are is most useful.
-    int maxTalkerLines = 2;
+    // fill the display and push the channel line off it. The channel now steps aside on
+    // its own while people speak, so the list may have everything by default.
+    int maxTalkerLines = 3;
 
     // Leave the user themselves out of the talker list. Deliberately does not touch the
     // separate "talking while muted" warning, which is about the user by definition.
     bool hideSelfInTalkers = false;
+
+    // Suppress the channel line while somebody is speaking.
+    bool hideChannelWhileTalking = true;
 
     bool isBuddy(const std::string& uniqueId) const;
 };
@@ -94,5 +97,9 @@ std::string fitText(const std::string& text, int maxChars);
 
 // True while an event is fresh enough to be worth the screen.
 bool isFresh(Timestamp event, Timestamp now, std::chrono::milliseconds window);
+
+// Is anyone actually speaking right now? Lingering entries do not count - they are the
+// fading tail of the list, not a reason to keep other widgets quiet.
+bool anyoneSpeaking(const ClientState& state);
 
 }  // namespace ts3ss

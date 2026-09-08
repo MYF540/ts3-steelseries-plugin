@@ -19,6 +19,7 @@
 #define IDC_LANGUAGE         1016
 #define IDC_TALKER_LINES     1021
 #define IDC_HIDE_SELF        1022
+#define IDC_HIDE_CHANNEL     1024
 
 #define IDC_LABEL_WIDGETS    1010
 #define IDC_LABEL_DURATION   1011

@@ -66,6 +66,8 @@ constexpr Entry kStrings[] = {
     /* LabelTalkerLines */ {"Zeilen für Sprecher:", "Lines for talkers:"},
     /* CheckHideSelf    */ {"Mich nicht in der Sprecherliste zeigen",
                             "Hide me from the talker list"},
+    /* CheckHideChannel */ {"Channel beim Reden ausblenden",
+                            "Hide channel while talking"},
     /* LabelBuddies     */ {"Buddys (UID, oder Rechtsklick im Client):",
                             "Buddies (UID, or right-click in the client):"},
     /* ButtonAdd        */ {"Hinzuf\xC3\xBCgen", "Add"},

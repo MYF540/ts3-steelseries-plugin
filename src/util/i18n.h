@@ -60,6 +60,7 @@ enum class Str : int {
     LabelPacketLoss,
     LabelTalkerLines,
     CheckHideSelf,
+    CheckHideChannel,
     LabelBuddies,
     ButtonAdd,
     ButtonRemove,

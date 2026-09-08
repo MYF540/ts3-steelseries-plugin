@@ -126,6 +126,8 @@ Config loadConfig(const std::filesystem::path& file) {
             std::chrono::milliseconds(it->value("hold_ms", config.holdAfterEmpty.count()));
         config.maxTalkerLines    = it->value("max_talker_lines", config.maxTalkerLines);
         config.hideSelfInTalkers = it->value("hide_self_in_talkers", config.hideSelfInTalkers);
+        config.hideChannelWhileTalking =
+            it->value("hide_channel_while_talking", config.hideChannelWhileTalking);
     }
 
     config.maxTalkerLines = std::min(std::max(config.maxTalkerLines, Config::kMinTalkerLines),
@@ -203,6 +205,7 @@ bool saveConfig(const std::filesystem::path& file, const Config& config) {
              {"hold_ms", config.holdAfterEmpty.count()},
              {"max_talker_lines", config.maxTalkerLines},
              {"hide_self_in_talkers", config.hideSelfInTalkers},
+             {"hide_channel_while_talking", config.hideChannelWhileTalking},
          }},
         {"thresholds",
          {

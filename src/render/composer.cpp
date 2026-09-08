@@ -96,6 +96,7 @@ Frame Composer::compose(const ClientState& state, Timestamp now) const {
         ctx.packetLossWarn    = config_->packetLossWarn;
         ctx.maxTalkerLines    = config_->maxTalkerLines;
         ctx.hideSelfInTalkers = config_->hideSelfInTalkers;
+        ctx.hideChannelWhileTalking = config_->hideChannelWhileTalking;
     }
     ctx.maxTalkerLines = std::min(ctx.maxTalkerLines, ctx.maxLines);
 

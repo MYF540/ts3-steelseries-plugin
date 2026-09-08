@@ -68,9 +68,11 @@ struct RenderContext {
     int    pingWarnMs;
     double packetLossWarn;
 
-    // Zeilenbudget der Sprecherliste, und ob der Nutzer sich selbst darin sehen will.
+    // Zeilenbudget der Sprecherliste, ob der Nutzer sich selbst darin sehen will,
+    // und ob die Channel-Zeile beim Reden beiseitetritt.
     int  maxTalkerLines;
     bool hideSelfInTalkers;
+    bool hideChannelWhileTalking;
 };
 
 class IWidget {
@@ -287,11 +289,14 @@ nichts, was man wissen musste.
 `server_join` bleibt still, solange die Buddy-Liste leer ist — sonst wäre auf einem gut
 besuchten Server jede Verbindung eine Displayübernahme.
 
+`channel_info` tritt beiseite, solange jemand spricht: In dem Moment zählen die Namen,
+und wo man selbst ist, weiß man ohnehin. Abschaltbar über
+`display.hide_channel_while_talking`.
+
 `talkers` sortiert nach Aktualität: wer noch spricht, steht oben, darunter absteigend
 nach Alter. Ein Name bleibt nach dem Verstummen für die eingestellte Dauer stehen
 (Standard 3 s) — ohne dieses Nachleuchten verschwindet er bei jedem kurzen „ja" sofort
-wieder. Die Liste belegt höchstens `display.max_talker_lines` Zeilen (Standard 2),
-damit die Channel-Zeile bei mehreren Sprechern nicht verdrängt wird.
+wieder. Die Liste darf alle Zeilen belegen (`display.max_talker_lines`, Standard 3).
 
 `channel_info` zeigt `aktiv/gesamt` statt nur der Gesamtzahl. Als inaktiv zählt, wer
 stummgeschaltet, auf Ton-aus oder **abwesend** ist — alle drei sind da, aber nicht

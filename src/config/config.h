@@ -36,12 +36,10 @@ struct Config {
 
     std::chrono::milliseconds holdAfterEmpty{6000};
 
-    // How many of the three lines the talker list may take.
-    //
-    // Two by default so the channel line survives a busy moment. Before this existed,
-    // three simultaneous speakers filled the display and pushed the channel out - which
-    // is exactly when knowing where you are is most useful.
-    int maxTalkerLines = 2;
+    // How many of the lines the talker list may take. All of them by default: while
+    // people are speaking their names are what matters, and the channel line steps
+    // aside (see hideChannelWhileTalking).
+    int maxTalkerLines = 3;
 
     static constexpr int kMinTalkerLines = 1;
     static constexpr int kMaxTalkerLines = 3;
@@ -49,6 +47,10 @@ struct Config {
     // Leave yourself out of the talker list. Does not affect the separate
     // "talking while muted" warning, which is about you by definition.
     bool hideSelfInTalkers = false;
+
+    // Suppress the channel line while somebody is speaking. The names are the point in
+    // that moment; where you are is something you already know.
+    bool hideChannelWhileTalking = true;
 
     // Above these, connection_quality speaks up. What counts as "bad" depends on the
     // connection and on how much the user is willing to be interrupted, so it is a

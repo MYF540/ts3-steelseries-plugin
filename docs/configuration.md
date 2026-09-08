@@ -25,8 +25,9 @@ kennt** — man muss also nichts von Hand ergänzen, um zu sehen, was es gibt.
     "chars_with_icon": 12,
     "chars_without_icon": 16,
     "hold_ms": 6000,
-    "max_talker_lines": 2,
-    "hide_self_in_talkers": false
+    "max_talker_lines": 3,
+    "hide_self_in_talkers": false,
+    "hide_channel_while_talking": true
   },
 
   "thresholds": {
@@ -147,16 +148,21 @@ Dauerbelegung würde die Musikanzeige zerhacken — ausführlich in
 Standard 3 — das ist die auf der Arctis-Nova-Pro-Basisstation gemessene Zeilenzahl.
 Gebunden wurden fünf Zeilen, dargestellt drei; horizontal wurde nichts abgeschnitten.
 
+### `display.hide_channel_while_talking`
+
+Blendet die Channel-Zeile aus, solange jemand spricht. **Standard `true`.**
+
+In dem Moment zählen die Namen; wo man selbst ist, weiß man ohnehin. Nur echtes Sprechen
+zählt, nicht das Nachleuchten der Liste — käme der Channel in der Sekunde zurück, in der
+der Letzte verstummt, wäre genau das Zucken wieder da, das das Nachleuchten beseitigt.
+
 ### `display.max_talker_lines`
 
-Wie viele der Zeilen die Sprecherliste belegen darf. **Standard 2.**
+Wie viele der Zeilen die Sprecherliste belegen darf. **Standard 3**, also alle: Da die
+Channel-Zeile beim Reden ohnehin beiseitetritt, konkurriert nichts mehr um den Platz.
 
-Der Wert existiert wegen einer gemeldeten Panne: Bei drei gleichzeitigen Sprechern füllte
-die Liste das ganze Display und verdrängte die Channel-Zeile — ausgerechnet dann, wenn es
-am nützlichsten ist zu wissen, wo man gerade ist. Mit Nachleuchten wäre das der Normalfall
-geworden statt der Ausnahme.
-
-Auf 1–3 begrenzt, zusätzlich nie größer als `max_lines`.
+Auf 1–3 begrenzt, zusätzlich nie größer als `max_lines`. Kleiner setzen, wer bei vielen
+gleichzeitigen Sprechern lieber eine ruhigere Anzeige hat.
 
 ### `display.hide_self_in_talkers`
 

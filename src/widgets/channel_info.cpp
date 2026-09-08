@@ -24,6 +24,16 @@ public:
         if (!state.connected || state.channelName.empty())
             return std::nullopt;
 
+        // While people are speaking, the names are what the display is for. Where you
+        // are is something you already know, so the channel line steps aside and leaves
+        // the room to the talker list.
+        //
+        // Only actual speech counts, not the fading tail of the list: coming back the
+        // instant the last person stops would undo the linger that keeps the display
+        // calm.
+        if (ctx.hideChannelWhileTalking && anyoneSpeaking(state))
+            return std::nullopt;
+
         WidgetOutput out;
         // No icon: the 32 icon pixels cost four characters, and a channel name needs
         // them more than it needs a symbol.

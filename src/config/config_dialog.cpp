@@ -227,6 +227,8 @@ void harvestThresholds(HWND dialog, Config& config) {
 void showTalkerOptions(HWND dialog, const Config& config) {
     SetDlgItemInt(dialog, IDC_TALKER_LINES, static_cast<UINT>(config.maxTalkerLines), FALSE);
     CheckDlgButton(dialog, IDC_HIDE_SELF, config.hideSelfInTalkers ? BST_CHECKED : BST_UNCHECKED);
+    CheckDlgButton(dialog, IDC_HIDE_CHANNEL,
+                   config.hideChannelWhileTalking ? BST_CHECKED : BST_UNCHECKED);
 }
 
 void harvestTalkerOptions(HWND dialog, Config& config) {
@@ -241,6 +243,8 @@ void harvestTalkerOptions(HWND dialog, Config& config) {
     }
 
     config.hideSelfInTalkers = IsDlgButtonChecked(dialog, IDC_HIDE_SELF) == BST_CHECKED;
+    config.hideChannelWhileTalking =
+        IsDlgButtonChecked(dialog, IDC_HIDE_CHANNEL) == BST_CHECKED;
 }
 
 void fillLanguageBox(HWND dialog, const Config& config) {
@@ -285,6 +289,7 @@ void initialiseDialog(HWND dialog, DialogState* state) {
     SetDlgItemTextW(dialog, IDC_LABEL_LOSS, trW(Str::LabelPacketLoss).c_str());
     SetDlgItemTextW(dialog, IDC_LABEL_TALKERS, trW(Str::LabelTalkerLines).c_str());
     SetDlgItemTextW(dialog, IDC_HIDE_SELF, trW(Str::CheckHideSelf).c_str());
+    SetDlgItemTextW(dialog, IDC_HIDE_CHANNEL, trW(Str::CheckHideChannel).c_str());
     SetDlgItemTextW(dialog, IDC_LABEL_BUDDIES, trW(Str::LabelBuddies).c_str());
     SetDlgItemTextW(dialog, IDC_BUDDY_ADD, trW(Str::ButtonAdd).c_str());
     SetDlgItemTextW(dialog, IDC_BUDDY_REMOVE, trW(Str::ButtonRemove).c_str());

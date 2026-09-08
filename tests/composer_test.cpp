@@ -101,15 +101,20 @@ TEST_CASE("a talker claims the screen") {
     CHECK(frame.lines.front() == "Anna");
 }
 
-TEST_CASE("persistent state rides along once the screen is claimed") {
+TEST_CASE("the channel steps aside while somebody speaks") {
     auto state = connectedState();
     state.talkers.push_back(talker("Anna", t0()));
 
+    // Beim Reden zaehlen die Namen; wo man ist, weiss man selbst.
     const Frame frame = Composer{}.compose(state, t0());
-    // Channel info contributes nothing on its own, but appears next to the talker.
-    const bool hasChannel = std::any_of(frame.lines.begin(), frame.lines.end(),
-                                        [](const std::string& l) { return l.rfind("Lobby", 0) == 0; });
-    CHECK(hasChannel);
+    CHECK_FALSE(std::any_of(frame.lines.begin(), frame.lines.end(),
+                            [](const std::string& l) { return l.rfind("Lobby", 0) == 0; }));
+
+    // Verstummt der Letzte, kommt der Channel neben der nachleuchtenden Liste zurueck.
+    state.talkers.front().speaking = false;
+    const Frame after = Composer{}.compose(state, t0() + std::chrono::seconds(1));
+    CHECK(std::any_of(after.lines.begin(), after.lines.end(),
+                      [](const std::string& l) { return l.rfind("Lobby", 0) == 0; }));
 }
 
 // "3/7" says something "7" does not: how many of the people present could answer you.
@@ -118,7 +123,8 @@ TEST_CASE("the channel shows active of total") {
     auto state               = connectedState();
     state.channelClientCount = 7;
     state.channelActiveCount = 3;
-    state.talkers.push_back(talker("Anna", t0()));
+    // Nachleuchtend, nicht sprechend - sonst tritt die Channel-Zeile beiseite.
+    state.talkers.push_back(talker("Anna", t0(), /*speaking=*/false));
 
     const Frame frame = Composer{}.compose(state, t0());
     const bool  found = std::any_of(frame.lines.begin(), frame.lines.end(),
@@ -323,31 +329,25 @@ TEST_CASE("all widgets are registered") {
     }
 }
 
-// --- Reproduktion: "Wenn jemand redet, fehlt der Channel" -------------------
+// --- Gewuenscht: beim Reden gehoert das Display den Namen -------------------
 
-TEST_CASE("reported: channel line while someone is talking") {
+TEST_CASE("no channel line while people are talking") {
     auto state               = connectedState();
     state.channelClientCount = 7;
     state.channelActiveCount = 3;
 
     auto config = defaultConfig();  // alles aktiv, Registrierungsreihenfolge
 
+    const auto hasChannel = [](const Frame& f) {
+        return std::any_of(f.lines.begin(), f.lines.end(),
+                           [](const std::string& l) { return l.rfind("Lobby", 0) == 0; });
+    };
+
     SUBCASE("one talker") {
         state.talkers.push_back(talker("Anna", t0()));
         const Frame frame = Composer(config).compose(state, t0());
-        MESSAGE("lines: ", frame.lines.size());
-        for (const auto& l : frame.lines) MESSAGE("  '", l, "'");
-        CHECK(std::any_of(frame.lines.begin(), frame.lines.end(),
-                          [](const std::string& l) { return l.rfind("Lobby", 0) == 0; }));
-    }
-
-    SUBCASE("two talkers") {
-        state.talkers.push_back(talker("Anna", t0()));
-        state.talkers.push_back(talker("Bernd", t0()));
-        const Frame frame = Composer(config).compose(state, t0());
-        for (const auto& l : frame.lines) MESSAGE("  '", l, "'");
-        CHECK(std::any_of(frame.lines.begin(), frame.lines.end(),
-                          [](const std::string& l) { return l.rfind("Lobby", 0) == 0; }));
+        REQUIRE_FALSE(frame.empty());
+        CHECK_FALSE(hasChannel(frame));
     }
 
     SUBCASE("three talkers") {
@@ -355,9 +355,18 @@ TEST_CASE("reported: channel line while someone is talking") {
         state.talkers.push_back(talker("Bernd", t0()));
         state.talkers.push_back(talker("Carl", t0()));
         const Frame frame = Composer(config).compose(state, t0());
-        for (const auto& l : frame.lines) MESSAGE("  '", l, "'");
-        CHECK(std::any_of(frame.lines.begin(), frame.lines.end(),
-                          [](const std::string& l) { return l.rfind("Lobby", 0) == 0; }));
+        CHECK(frame.lines.size() == 3);
+        CHECK_FALSE(hasChannel(frame));
+    }
+
+    // Abschaltbar - wer den Channel lieber immer sieht, bekommt ihn.
+    SUBCASE("switched off") {
+        state.talkers.push_back(talker("Anna", t0()));
+
+        Config off                   = *config;
+        off.hideChannelWhileTalking  = false;
+        const Frame frame = Composer(std::make_shared<const Config>(off)).compose(state, t0());
+        CHECK(hasChannel(frame));
     }
 }
 
@@ -463,12 +472,11 @@ TEST_CASE("the talker list respects its line budget") {
 
     config.maxTalkerLines = 1;
     const Frame one = Composer(std::make_shared<const Config>(config)).compose(state, t0());
-    CHECK(one.lines.size() >= 2);          // ein Sprecher plus Channel
-    CHECK(one.lines[1].rfind("Lobby", 0) == 0);
+    CHECK(one.lines.size() == 1);          // nur der neueste Sprecher
 
     config.maxTalkerLines = 3;
     const Frame three = Composer(std::make_shared<const Config>(config)).compose(state, t0());
-    CHECK(three.lines.size() == 3);        // Sprecher fuellen alles, Channel faellt raus
+    CHECK(three.lines.size() == 3);        // alle drei
 }
 
 TEST_CASE("a buddy going offline is announced") {

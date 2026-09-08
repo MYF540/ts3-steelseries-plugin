@@ -25,6 +25,11 @@ std::string fitText(const std::string& text, int maxChars) {
     return text.substr(0, limit - 1) + ".";
 }
 
+bool anyoneSpeaking(const ClientState& state) {
+    return std::any_of(state.talkers.begin(), state.talkers.end(),
+                       [](const TalkerInfo& t) { return t.speaking; });
+}
+
 bool isFresh(Timestamp event, Timestamp now, std::chrono::milliseconds window) {
     if (event.time_since_epoch().count() == 0)
         return false;  // never happened
