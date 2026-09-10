@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "core/client_state.h"
+#include "util/i18n.h"
 #include "render/frame.h"
 
 namespace ts3ss {
@@ -65,8 +66,15 @@ struct RenderContext {
     // separate "talking while muted" warning, which is about the user by definition.
     bool hideSelfInTalkers = false;
 
-    // Suppress the channel line while somebody is speaking.
+    // Suppress the channel line while the talker list is on screen.
     bool hideChannelWhileTalking = true;
+
+    // The talker list's own linger window, filled in by the composer.
+    //
+    // channel_info needs it to know whether that list is still showing. The composer is
+    // the only place that knows every widget's configured duration, so bridging it here
+    // beats letting one widget reach into another's settings.
+    std::chrono::milliseconds talkerWindow{3000};
 
     bool isBuddy(const std::string& uniqueId) const;
 };
@@ -86,6 +94,12 @@ public:
     // Used when the config does not mention this widget yet. Clamped to 1-60 s on load.
     virtual std::chrono::milliseconds defaultDuration() const { return std::chrono::seconds(5); }
 
+    // Label the dialog shows above the duration field for this widget. Most events are
+    // simply "how long is this shown"; for the talker list the same number means how
+    // long a name lingers after somebody stops, and calling both "duration" left that
+    // setting undiscoverable.
+    virtual Str durationLabel() const { return Str::LabelDuration; }
+
     // nullopt means "nothing to contribute right now" and is the normal case.
     virtual std::optional<WidgetOutput> render(const ClientState& state,
                                                const RenderContext& ctx) const = 0;
@@ -98,8 +112,14 @@ std::string fitText(const std::string& text, int maxChars);
 // True while an event is fresh enough to be worth the screen.
 bool isFresh(Timestamp event, Timestamp now, std::chrono::milliseconds window);
 
-// Is anyone actually speaking right now? Lingering entries do not count - they are the
-// fading tail of the list, not a reason to keep other widgets quiet.
+// Is anyone actually speaking right now?
 bool anyoneSpeaking(const ClientState& state);
+
+// Would the talker list show anything - speaking or still within its linger window?
+//
+// This, not anyoneSpeaking(), is what "is the talker list on screen" means. Using the
+// narrower question made the channel line reappear between two utterances and blink on
+// and off through a conversation.
+bool anyTalkerVisible(const ClientState& state, Timestamp now, std::chrono::milliseconds window);
 
 }  // namespace ts3ss

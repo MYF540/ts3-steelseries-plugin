@@ -50,6 +50,7 @@ enum class Str : int {
     ButtonUp,
     ButtonDown,
     LabelDuration,
+    LabelLinger,
     ButtonSet,
     LabelLanguage,
     LangAuto,

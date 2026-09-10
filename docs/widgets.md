@@ -69,10 +69,14 @@ struct RenderContext {
     double packetLossWarn;
 
     // Zeilenbudget der Sprecherliste, ob der Nutzer sich selbst darin sehen will,
-    // und ob die Channel-Zeile beim Reden beiseitetritt.
+    // und ob die Channel-Zeile beiseitetritt, solange die Liste zu sehen ist.
     int  maxTalkerLines;
     bool hideSelfInTalkers;
     bool hideChannelWhileTalking;
+
+    // Das Nachleuchtfenster der Sprecherliste, vom Composer gefüllt. channel_info
+    // braucht es, um zu wissen, ob diese Liste noch angezeigt wird.
+    std::chrono::milliseconds talkerWindow;
 };
 
 class IWidget {
@@ -87,6 +91,12 @@ public:
     // Gilt, solange die Config dieses Widget noch nicht kennt. Beim Laden auf
     // 1-60 s begrenzt.
     virtual std::chrono::milliseconds defaultDuration() const { return std::chrono::seconds(5); }
+
+    // Beschriftung, die der Dialog über das Dauer-Feld schreibt. Bei den meisten
+    // Anzeigen ist die Dauer schlicht "wie lange wird das gezeigt"; bei der
+    // Sprecherliste ist dieselbe Zahl das Nachleuchten, und beides "Dauer" zu nennen
+    // machte diese Einstellung unauffindbar.
+    virtual Str durationLabel() const { return Str::LabelDuration; }
 
     virtual std::optional<WidgetOutput> render(const ClientState& state,
                                                const RenderContext& ctx) const = 0;
@@ -289,9 +299,9 @@ nichts, was man wissen musste.
 `server_join` bleibt still, solange die Buddy-Liste leer ist — sonst wäre auf einem gut
 besuchten Server jede Verbindung eine Displayübernahme.
 
-`channel_info` tritt beiseite, solange jemand spricht: In dem Moment zählen die Namen,
-und wo man selbst ist, weiß man ohnehin. Abschaltbar über
-`display.hide_channel_while_talking`.
+`channel_info` tritt beiseite, solange die Sprecherliste zu sehen ist — **inklusive
+Nachleuchten**. Nur auf aktives Sprechen zu prüfen ließ die Zeile zwischen zwei
+Wortmeldungen blinken. Abschaltbar über `display.hide_channel_while_talking`.
 
 `talkers` sortiert nach Aktualität: wer noch spricht, steht oben, darunter absteigend
 nach Alter. Ein Name bleibt nach dem Verstummen für die eingestellte Dauer stehen

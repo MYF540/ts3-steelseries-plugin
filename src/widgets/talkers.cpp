@@ -22,6 +22,9 @@ public:
 
     std::chrono::milliseconds defaultDuration() const override { return std::chrono::seconds(3); }
 
+    // Fuer diese Liste ist die Dauer das Nachleuchten, nicht die Anzeigezeit.
+    Str durationLabel() const override { return Str::LabelLinger; }
+
     std::optional<WidgetOutput> render(const ClientState& state,
                                        const RenderContext& ctx) const override {
         if (!state.connected || state.talkers.empty())

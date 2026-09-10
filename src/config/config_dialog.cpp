@@ -118,8 +118,17 @@ void showDurationOf(HWND dialog, const Config& config, int index) {
     if (index < 0 || index >= static_cast<int>(config.widgets.size()))
         return;
 
-    const auto seconds = config.widgets[static_cast<size_t>(index)].duration.count() / 1000;
+    const auto& entry   = config.widgets[static_cast<size_t>(index)];
+    const auto  seconds = entry.duration.count() / 1000;
     SetDlgItemTextW(dialog, IDC_DURATION, std::to_wstring(seconds).c_str());
+
+    // The label follows the selection. For most widgets the number is "how long is this
+    // shown"; for the talker list the very same number is how long a name lingers after
+    // somebody stops. Labelling both "duration" made the linger setting look absent.
+    Str label = Str::LabelDuration;
+    if (const IWidget* widget = WidgetRegistry::instance().find(entry.id))
+        label = widget->durationLabel();
+    SetDlgItemTextW(dialog, IDC_LABEL_DURATION, trW(label).c_str());
 }
 
 void applyDuration(HWND dialog, Config& config) {

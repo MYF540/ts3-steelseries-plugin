@@ -112,6 +112,10 @@ Bei **`talkers`** ist der Wert das **Nachleuchten**: wie lange ein Name nach dem
 Verstummen stehen bleibt. Ohne das verschwindet ein Name bei jedem kurzen „ja" sofort
 wieder, und in einem lebhaften Channel kommt die Anzeige nie zur Ruhe. Standard 3 s.
 
+Der Dialog beschriftet das Feld für diese Anzeige deshalb als **„Nachleuchten"** statt
+„Dauer" — mit der generischen Beschriftung war die Einstellung schlicht nicht als solche
+zu erkennen.
+
 ### `buddies`
 
 Liste von **`CLIENT_UNIQUE_IDENTIFIER`**-Werten (nicht Nicknames — die ändern sich, die
@@ -150,11 +154,15 @@ Gebunden wurden fünf Zeilen, dargestellt drei; horizontal wurde nichts abgeschn
 
 ### `display.hide_channel_while_talking`
 
-Blendet die Channel-Zeile aus, solange jemand spricht. **Standard `true`.**
+Blendet die Channel-Zeile aus, solange die Sprecherliste zu sehen ist. **Standard `true`.**
 
-In dem Moment zählen die Namen; wo man selbst ist, weiß man ohnehin. Nur echtes Sprechen
-zählt, nicht das Nachleuchten der Liste — käme der Channel in der Sekunde zurück, in der
-der Letzte verstummt, wäre genau das Zucken wieder da, das das Nachleuchten beseitigt.
+In dem Moment zählen die Namen; wo man selbst ist, weiß man ohnehin.
+
+**Das Nachleuchten zählt mit.** Eine frühere Fassung prüfte nur auf aktives Sprechen —
+dann kam die Channel-Zeile zwischen zwei Wortmeldungen zurück und verschwand gleich
+wieder, und in einem Gespräch mit abwechselnden Sprechern blinkte sie ununterbrochen. Ob
+ein Name gerade gesprochen wird oder nur verklingt: Die Liste ist da, also tritt der
+Channel beiseite.
 
 ### `display.max_talker_lines`
 

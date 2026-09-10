@@ -100,6 +100,15 @@ Frame Composer::compose(const ClientState& state, Timestamp now) const {
     }
     ctx.maxTalkerLines = std::min(ctx.maxTalkerLines, ctx.maxLines);
 
+    // The talker list's linger window, so channel_info can tell whether that list is
+    // still on screen. Only the composer sees every widget's configured duration.
+    for (const auto& entry : entries) {
+        if (entry.widget->id() == "talkers") {
+            ctx.talkerWindow = entry.duration;
+            break;
+        }
+    }
+
     const int withIcon    = config_ ? config_->charsWithIcon : 12;
     const int withoutIcon = config_ ? config_->charsWithoutIcon : 16;
 

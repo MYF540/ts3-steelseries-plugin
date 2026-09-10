@@ -30,6 +30,14 @@ bool anyoneSpeaking(const ClientState& state) {
                        [](const TalkerInfo& t) { return t.speaking; });
 }
 
+bool anyTalkerVisible(const ClientState& state, Timestamp now,
+                      std::chrono::milliseconds window) {
+    return std::any_of(state.talkers.begin(), state.talkers.end(),
+                       [&](const TalkerInfo& t) {
+                           return t.speaking || isFresh(t.lastActive, now, window);
+                       });
+}
+
 bool isFresh(Timestamp event, Timestamp now, std::chrono::milliseconds window) {
     if (event.time_since_epoch().count() == 0)
         return false;  // never happened

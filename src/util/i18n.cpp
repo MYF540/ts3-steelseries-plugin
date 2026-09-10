@@ -55,6 +55,7 @@ constexpr Entry kStrings[] = {
     /* ButtonUp         */ {"Nach oben", "Move up"},
     /* ButtonDown       */ {"Nach unten", "Move down"},
     /* LabelDuration    */ {"Dauer (1-60 s):", "Duration (1-60 s):"},
+    /* LabelLinger      */ {"Nachleuchten (1-60 s):", "Linger (1-60 s):"},
     /* ButtonSet        */ {"Setzen", "Apply"},
     /* LabelLanguage    */ {"Sprache:", "Language:"},
     /* LangAuto         */ {"Automatisch", "Automatic"},

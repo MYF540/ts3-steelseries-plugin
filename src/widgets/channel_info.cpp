@@ -24,14 +24,14 @@ public:
         if (!state.connected || state.channelName.empty())
             return std::nullopt;
 
-        // While people are speaking, the names are what the display is for. Where you
-        // are is something you already know, so the channel line steps aside and leaves
-        // the room to the talker list.
+        // While the talker list is on screen, the names are what the display is for.
+        // Where you are is something you already know, so the channel line steps aside.
         //
-        // Only actual speech counts, not the fading tail of the list: coming back the
-        // instant the last person stops would undo the linger that keeps the display
-        // calm.
-        if (ctx.hideChannelWhileTalking && anyoneSpeaking(state))
+        // The linger counts too. An earlier version only checked for active speech, so
+        // between two utterances the channel popped back in and vanished again - through
+        // a conversation with alternating speakers it blinked constantly. Whether a name
+        // is currently voiced or merely fading, the list is still there.
+        if (ctx.hideChannelWhileTalking && anyTalkerVisible(state, ctx.now, ctx.talkerWindow))
             return std::nullopt;
 
         WidgetOutput out;

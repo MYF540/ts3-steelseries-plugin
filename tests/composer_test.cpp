@@ -109,22 +109,16 @@ TEST_CASE("the channel steps aside while somebody speaks") {
     const Frame frame = Composer{}.compose(state, t0());
     CHECK_FALSE(std::any_of(frame.lines.begin(), frame.lines.end(),
                             [](const std::string& l) { return l.rfind("Lobby", 0) == 0; }));
-
-    // Verstummt der Letzte, kommt der Channel neben der nachleuchtenden Liste zurueck.
-    state.talkers.front().speaking = false;
-    const Frame after = Composer{}.compose(state, t0() + std::chrono::seconds(1));
-    CHECK(std::any_of(after.lines.begin(), after.lines.end(),
-                      [](const std::string& l) { return l.rfind("Lobby", 0) == 0; }));
 }
 
 // "3/7" says something "7" does not: how many of the people present could answer you.
-// Muted or deafened members are there but unreachable.
+// Muted, deafened or away members are there but unreachable.
 TEST_CASE("the channel shows active of total") {
     auto state               = connectedState();
     state.channelClientCount = 7;
     state.channelActiveCount = 3;
-    // Nachleuchtend, nicht sprechend - sonst tritt die Channel-Zeile beiseite.
-    state.talkers.push_back(talker("Anna", t0(), /*speaking=*/false));
+    // Ein Channelwechsel holt den Schirm - ohne Sprecher, die die Zeile verdraengen.
+    state.channelChangedAt = t0();
 
     const Frame frame = Composer{}.compose(state, t0());
     const bool  found = std::any_of(frame.lines.begin(), frame.lines.end(),
@@ -497,4 +491,47 @@ TEST_CASE("a stranger going offline is not announced") {
     state.lastServerLeave = {"Fremder", "", t0(), /*buddy=*/false};
 
     CHECK(Composer(defaultConfig()).compose(state, t0()).empty());
+}
+
+// --- Channel bleibt waehrend des Nachleuchtens aus ---------------------------
+
+// Gemeldet: "wenn jemand aktiv redet ist die Channelanzeige aus, beim Nachleuchten ist
+// sie wieder an". Genau so war es gebaut - anyoneSpeaking() zaehlte nur echtes Sprechen.
+// In einem Gespraech mit abwechselnden Sprechern blinkt die Zeile dadurch staendig.
+TEST_CASE("the channel stays away through the linger") {
+    auto state = connectedState();
+
+    Config config = *defaultConfig();
+    for (auto& w : config.widgets)
+        if (w.id == "talkers") w.duration = std::chrono::seconds(5);
+    auto shared = std::make_shared<const Config>(config);
+
+    const auto hasChannel = [](const Frame& f) {
+        return std::any_of(f.lines.begin(), f.lines.end(),
+                           [](const std::string& l) { return l.rfind("Lobby", 0) == 0; });
+    };
+
+    // Spricht
+    state.talkers.push_back(talker("Anna", t0()));
+    CHECK_FALSE(hasChannel(Composer(shared).compose(state, t0())));
+
+    // Verstummt - Name leuchtet nach, Channel bleibt weg
+    state.talkers.front().speaking = false;
+    CHECK_FALSE(hasChannel(Composer(shared).compose(state, t0() + std::chrono::seconds(2))));
+
+    // Erst wenn die Liste ganz verschwunden ist, kommt der Channel zurueck -
+    // und dann ist der Schirm ohnehin frei.
+    CHECK(Composer(shared).compose(state, t0() + std::chrono::seconds(30)).empty());
+}
+
+// Die Dauer der Sprecherliste IST das Nachleuchten - der Dialog beschriftet sie deshalb
+// anders als bei allen anderen Anzeigen.
+TEST_CASE("the talker list labels its duration as linger") {
+    const IWidget* talkers = WidgetRegistry::instance().find("talkers");
+    REQUIRE(talkers != nullptr);
+    CHECK(talkers->durationLabel() == Str::LabelLinger);
+
+    const IWidget* poke = WidgetRegistry::instance().find("poke");
+    REQUIRE(poke != nullptr);
+    CHECK(poke->durationLabel() == Str::LabelDuration);
 }
